@@ -1,6 +1,7 @@
 package com.unshoo.pixelmusic.presentation.viewmodel
 
 import android.app.Activity
+import android.util.Log
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.unshoo.pixelmusic.R
 import com.unshoo.pixelmusic.data.model.Song
@@ -11,7 +12,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import kotlin.math.absoluteValue
+import unshoo.ianshulyadav.pixelmusic.innertube.YouTube
 
 @ViewModelScoped
 class SongRemovalStateHolder @Inject constructor(
@@ -64,7 +67,11 @@ class SongRemovalStateHolder @Inject constructor(
     suspend fun removeSongFromLibrary(song: Song) {
         libraryStateHolder.removeSong(song.id)
         
-        // FIX: Safely handles both Local IDs and generated YouTube negative IDs
+        // 1. Identify which playlists currently have this song BEFORE we delete it locally
+        val currentPlaylists = playlistPreferencesRepository.userPlaylistsFlow.first()
+        val playlistsContainingSong = currentPlaylists.filter { it.songIds.contains(song.id) }
+
+        // 2. Remove from local database
         val localId = song.id.toLongOrNull()
         if (localId != null) {
             musicRepository.deleteById(localId)
@@ -74,6 +81,24 @@ class SongRemovalStateHolder @Inject constructor(
             musicRepository.deleteById(unifiedId)
         }
         
+        // 3. Remove from local playlist records
         playlistPreferencesRepository.removeSongFromAllPlaylists(song.id)
+
+        // 4. Sync deletions to remote YouTube playlists so it doesn't come back on refresh!
+        val videoId = song.youtubeId ?: if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") else null
+        if (!videoId.isNullOrBlank()) {
+            playlistsContainingSong.filter { it.source == "YOUTUBE" }.forEach { playlist ->
+                try {
+                    withContext(Dispatchers.IO) {
+                        val setVideoIds = YouTube.playlistEntrySetVideoIds(playlist.id, videoId).getOrNull()
+                        setVideoIds?.forEach { setVideoId ->
+                            YouTube.removeFromPlaylist(playlist.id, videoId, setVideoId)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("SongRemoval", "Failed to sync song removal to YouTube playlist ${playlist.id}", e)
+                }
+            }
+        }
     }
 }
