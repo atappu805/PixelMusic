@@ -11,6 +11,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.absoluteValue
 
 @ViewModelScoped
 class SongRemovalStateHolder @Inject constructor(
@@ -62,7 +63,17 @@ class SongRemovalStateHolder @Inject constructor(
 
     suspend fun removeSongFromLibrary(song: Song) {
         libraryStateHolder.removeSong(song.id)
-        musicRepository.deleteById(song.id.toLong())
+        
+        // FIX: Safely handles both Local IDs and generated YouTube negative IDs
+        val localId = song.id.toLongOrNull()
+        if (localId != null) {
+            musicRepository.deleteById(localId)
+        } else if (song.id.startsWith("youtube_") || song.youtubeId != null) {
+            val yId = song.youtubeId ?: song.id.removePrefix("youtube_")
+            val unifiedId = -(15_000_000_000_000L + yId.hashCode().toLong().absoluteValue)
+            musicRepository.deleteById(unifiedId)
+        }
+        
         playlistPreferencesRepository.removeSongFromAllPlaylists(song.id)
     }
 }
