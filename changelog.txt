@@ -1,5 +1,6 @@
 **Sub release 3.7** 
 
+*Fixed double notification on lock screen.[@Saurav124x]
 *Lyrics on the Now Playing screen in Immersive or Immersive Extended mode.[@Saurav124x]
 *Fixed car play.[@Xyg901]
 *Updated and polished music recognition animation. ✨ [@Saurav124x]
