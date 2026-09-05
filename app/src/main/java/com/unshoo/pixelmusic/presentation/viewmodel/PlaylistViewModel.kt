@@ -42,7 +42,6 @@ import com.unshoo.pixelmusic.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -487,9 +486,9 @@ class PlaylistViewModel @Inject constructor(
         coverImageUri: String? = null,
         coverColor: Int? = null,
         coverIcon: String? = null,
-        songIds: List<String> = emptyList(), // Added songIds parameter
-        songs: List<Song> = emptyList(), // Added songs parameter
-        privacyStatus: String = "LOCAL", // Added privacyStatus parameter ("LOCAL", "PRIVATE", "UNLISTED", "PUBLIC")
+        songIds: List<String> = emptyList(),
+        songs: List<Song> = emptyList(),
+        privacyStatus: String = "LOCAL",
         cropScale: Float = 1f,
         cropPanX: Float = 0f,
         cropPanY: Float = 0f,
@@ -500,7 +499,7 @@ class PlaylistViewModel @Inject constructor(
         coverShapeDetail2: Float? = null,
         coverShapeDetail3: Float? = null,
         coverShapeDetail4: Float? = null,
-        source: String = "LOCAL", // Mark source
+        source: String = "LOCAL",
         smartRuleKey: String? = null
     ) {
         viewModelScope.launch {
@@ -540,10 +539,10 @@ class PlaylistViewModel @Inject constructor(
                 val settings = datastoreRepository.settings.first()
                 if (!settings.cookies.isEmpty()) {
                     val youtubeVideoIds = if (songs.isNotEmpty()) {
-                        songs.mapNotNull { it.youtubeId ?: if (it.id.startsWith("youtube_")) it.id.removePrefix("youtube_") else null }
+                        songs.mapNotNull { it.extractYoutubeId() }
                     } else {
                         val loadedSongs = musicRepository.getSongsByIdsOnce(songIds)
-                        loadedSongs.mapNotNull { it.youtubeId ?: if (it.id.startsWith("youtube_")) it.id.removePrefix("youtube_") else null }
+                        loadedSongs.mapNotNull { it.extractYoutubeId() }
                     }
                     try {
                         val result = withContext(Dispatchers.IO) {
@@ -670,10 +669,7 @@ class PlaylistViewModel @Inject constructor(
                 // Load original bitmap
                 val originalBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
-                        // Optimization: Mutable to support software rendering if needed
                         decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        // Use HARWARE if possible but need to copy for Canvas?
-                        // Software is safer for manual Canvas drawing.
                     }
                 } else {
                     @Suppress("DEPRECATION")
@@ -688,38 +684,26 @@ class PlaylistViewModel @Inject constructor(
                 val canvas = android.graphics.Canvas(targetBitmap)
 
                 // Calculate base dimensions (fitting smallest dimension to target)
-                // Logic must match ImageCropView
                 val bitmapWidth = originalBitmap.width.toFloat()
                 val bitmapHeight = originalBitmap.height.toFloat()
                 val bitmapRatio = bitmapWidth / bitmapHeight
 
                 val (baseWidth, baseHeight) = if (bitmapRatio > 1f) {
-                    // Wide: Height matches target
                     targetSize * bitmapRatio to targetSize.toFloat()
                 } else {
-                    // Tall: Width matches target
                     targetSize.toFloat() to targetSize / bitmapRatio
                 }
 
                 // Calculate transformations
-                // Scaled Dimensions
                 val scaledWidth = baseWidth * cropScale
                 val scaledHeight = baseHeight * cropScale
 
-                // Center + Pan
-                // Center of target is targetSize/2
-                // We want to center the Scaled Image at (Center + Pan)
-                // TopLeft = CenterX - ScaledW/2 + PanX
-
-                // Pan is normalized relative to Viewport (TargetSize)
                 val panPxX = cropPanX * targetSize
                 val panPxY = cropPanY * targetSize
 
                 val dx = (targetSize - scaledWidth) / 2f + panPxX
                 val dy = (targetSize - scaledHeight) / 2f + panPxY
 
-                // Draw
-                // We draw the original bitmap scaled to (scaledWidth, scaledHeight) at (dx, dy)
                 val matrix = android.graphics.Matrix()
                 matrix.postScale(scaledWidth / bitmapWidth, scaledHeight / bitmapHeight)
                 matrix.postTranslate(dx, dy)
@@ -735,8 +719,6 @@ class PlaylistViewModel @Inject constructor(
 
                 // Recycle
                 if (originalBitmap != targetBitmap) originalBitmap.recycle()
-                // Target bitmap is not recycled here, let GC handle?
-                // Or recycle explicitly if immediate memory pressure concern.
 
                 file.absolutePath
             } catch (e: Exception) {
@@ -905,10 +887,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Shares a playlist as M3U or CSV via the Android share sheet.
-     * The content is written to the app cache directory first, then shared.
-     */
     fun sharePlaylist(playlist: Playlist, asCsv: Boolean, context: android.content.Context) {
         viewModelScope.launch {
             try {
@@ -989,15 +967,7 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             var savedCoverPath: String? = currentPlaylist.coverImageUri
 
-            // If a new URI is provided and it's different from the existing one (and not null)
-            // Or if we need to re-save because crop params changed?
-            // For simplicity, if coverImageUri is passed and it's a content URI, we save it.
-            // If it's the same string as savedCoverPath, we assume it's unchanged unless we want to force re-crop.
-            // The UI will pass the Uri string. If it's a local file path, it's likely already saved.
-            // But if the user selected a new image, it will be a content content:// uri.
-
             if (coverImageUri != null && coverImageUri != currentPlaylist.coverImageUri) {
-                // Check if it is a content URI or a file path that is NOT the existing saved path
                 if (coverImageUri.startsWith("content://") || (coverImageUri.startsWith("/") && coverImageUri != currentPlaylist.coverImageUri)) {
                     val imageId = UUID.randomUUID().toString()
                     val newPath = saveCoverImageToInternalStorage(
@@ -1012,29 +982,11 @@ class PlaylistViewModel @Inject constructor(
                     }
                 }
             } else if (coverImageUri == null) {
-                // If passed null, it might mean remove cover? Or just no change?
-                // For this implementation let's assume if the user cleared it, the UI passes null.
-                // But we need to distinguish "no change" vs "remove".
-                // In CreatePlaylist we have "selectedImageUri".
-                // Let's assume the UI sends the desired final state.
-                // NOTE: If the user didn't change the image, the UI might send the existing coverImageUri (which is a file path).
-                // Or if they removed it, they send null.
-
-                // However, we also have crop parameters. If image is unchanged but crop changed, we should re-save (re-crop)
-                // if we have the original source. But we don't have the original source for the existing cover (we only have the cropped result).
-                // So, we can only re-crop if we have a source URI.
-                // This limitation implies: We can only update crop if we pick an image.
-                // So if coverImageUri is the existing path, we ignore crop params.
-                savedCoverPath = null // If explicit null passed, we remove it.
+                savedCoverPath = null 
             }
-            // Logic correction: 
-            // If the UI passes the EXISTING file path, implies NO CHANGE to image.
-            // If the UI passes a NEW content URI, implies NEW IMAGE (and we use crop params).
-            // If the UI passes NULL, implies REMOVE IMAGE.
             if (coverImageUri == currentPlaylist.coverImageUri) {
                 savedCoverPath = currentPlaylist.coverImageUri
             }
-
 
             val updatedPlaylist = currentPlaylist.copy(
                 name = name,
@@ -1048,7 +1000,6 @@ class PlaylistViewModel @Inject constructor(
                 coverShapeDetail4 = coverShapeDetail4
             )
 
-            // Optimistic update
             _uiState.update {
                 it.copy(currentPlaylistDetails = updatedPlaylist)
             }
@@ -1079,7 +1030,7 @@ class PlaylistViewModel @Inject constructor(
                 val settings = datastoreRepository.settings.first()
                 if (!settings.cookies.isEmpty()) {
                     val songs = musicRepository.getSongsByIdsOnce(songIdsToAdd)
-                    val videoIds = songs.mapNotNull { it.youtubeId ?: if (it.id.startsWith("youtube_")) it.id.removePrefix("youtube_") else null }
+                    val videoIds = songs.mapNotNull { it.extractYoutubeId() }
                     if (videoIds.isNotEmpty()) {
                         try {
                             withContext(Dispatchers.IO) {
@@ -1197,9 +1148,6 @@ class PlaylistViewModel @Inject constructor(
         return mappedIds
     }
 
-    /**
-     * @param playlistIds Ids of playlists to add the song to
-     * */
     fun addOrRemoveSongFromPlaylists(
         song: Song,
         playlistIds: List<String>,
@@ -1234,8 +1182,8 @@ class PlaylistViewModel @Inject constructor(
                 if (playlistId != currentPlaylistId) {
                     val playlist = currentPlaylists.find { it.id == playlistId }
                     if (playlist != null && playlist.source == "YOUTUBE") {
-                        val videoId = song.youtubeId ?: if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") else song.id
-                        if (videoId.isNotBlank()) {
+                        val videoId = song.extractYoutubeId()
+                        if (!videoId.isNullOrBlank()) {
                             viewModelScope.launch(Dispatchers.IO) {
                                 try {
                                     val setVideoIds = YouTube.playlistEntrySetVideoIds(playlist.id, videoId).getOrNull()
@@ -1256,7 +1204,7 @@ class PlaylistViewModel @Inject constructor(
                 if (playlist != null && playlist.source == "YOUTUBE") {
                     val settings = datastoreRepository.settings.first()
                     if (!settings.cookies.isEmpty()) {
-                        val videoId = song.youtubeId ?: if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") else null
+                        val videoId = song.extractYoutubeId()
                         if (videoId != null) {
                             try {
                                 withContext(Dispatchers.IO) {
@@ -1281,7 +1229,7 @@ class PlaylistViewModel @Inject constructor(
                 if (playlist != null && playlist.source == "YOUTUBE") {
                     val settings = datastoreRepository.settings.first()
                     if (!settings.cookies.isEmpty()) {
-                        val videoIds = songs.mapNotNull { it.youtubeId ?: if (it.id.startsWith("youtube_")) it.id.removePrefix("youtube_") else null }
+                        val videoIds = songs.mapNotNull { it.extractYoutubeId() }
                         if (videoIds.isNotEmpty()) {
                             try {
                                 withContext(Dispatchers.IO) {
@@ -1305,11 +1253,13 @@ class PlaylistViewModel @Inject constructor(
             playlistPreferencesRepository.removeSongFromPlaylist(playlistId, songIdToRemove)
             
             val song = musicRepository.getSongsByIdsOnce(listOf(songIdToRemove)).firstOrNull()
-            val videoId = song?.youtubeId ?: if (songIdToRemove.startsWith("youtube_")) songIdToRemove.removePrefix("youtube_") else songIdToRemove
+            
+            // FIX: Correctly extract the YouTube Video ID from the contentUriString or ID
+            val videoId = song?.extractYoutubeId(songIdToRemove)
             
             if (_uiState.value.currentPlaylistDetails?.id == playlistId) {
                 val targets = mutableSetOf(songIdToRemove)
-                if (videoId.isNotBlank() && videoId != songIdToRemove) {
+                if (!videoId.isNullOrBlank() && videoId != songIdToRemove) {
                     targets.add(videoId)
                     targets.add("youtube_$videoId")
                 }
@@ -1321,7 +1271,7 @@ class PlaylistViewModel @Inject constructor(
             }
             val playlist = playlistPreferencesRepository.userPlaylistsFlow.first().find { it.id == playlistId }
             if (playlist != null && playlist.source == "YOUTUBE") {
-                if (videoId.isNotBlank()) {
+                if (!videoId.isNullOrBlank()) {
                     try {
                         withContext(Dispatchers.IO) {
                             val setVideoIds = YouTube.playlistEntrySetVideoIds(playlist.id, videoId).getOrNull()
@@ -1438,9 +1388,6 @@ class PlaylistViewModel @Inject constructor(
                 )
             }
         }
-
-        // Persist local sort preference if needed (optional, not requested but good UX)
-        // For now, we keep it in memory as per request focus.
     }
 
     private fun isFolderPlaylistId(playlistId: String): Boolean =
@@ -1590,7 +1537,6 @@ class PlaylistViewModel @Inject constructor(
                     musicRepository.getAllSongsOnce()
                 }
 
-                // Call AiPlaylistGenerator
                 val result = aiPlaylistGenerator.generate(
                     userPrompt = prompt,
                     allSongs = allSongs,
@@ -1599,14 +1545,13 @@ class PlaylistViewModel @Inject constructor(
                 )
 
                 result.onSuccess { selectedSongs ->
-                    // Create Playlist
                     val playlistName = "AI: $prompt".take(50)
 
                     playlistPreferencesRepository.createPlaylist(
                         name = playlistName,
                         songIds = selectedSongs.map { it.id },
                         isAiGenerated = true,
-                        source = "AI" // Mark as AI source
+                        source = "AI" 
                     )
 
                     _uiState.update { it.copy(isAiGenerating = false) }
@@ -1630,9 +1575,6 @@ class PlaylistViewModel @Inject constructor(
         _uiState.update { it.copy(aiGenerationError = null) }
     }
 
-    /**
-     * Delete multiple playlists in batch
-     */
     fun deletePlaylistsInBatch(playlistIds: List<String>) {
         viewModelScope.launch {
             val playlists = playlistPreferencesRepository.userPlaylistsFlow.first()
@@ -1654,24 +1596,17 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Merge selected playlists into a new playlist
-     * Collects all songs from all selected playlists (removing duplicates)
-     */
     fun mergeSelectedPlaylists(playlistIds: List<String>, newPlaylistName: String) {
         if (newPlaylistName.isBlank()) return
 
         viewModelScope.launch {
             try {
-                // Get all songs from selected playlists
                 val selectedPlaylists = _uiState.value.playlists.filter { it.id in playlistIds }
                 val mergedSongIds = selectedPlaylists
                     .flatMap { it.songIds }
-                    .distinct() // Remove duplicates
-                    .toList()
+                    .distinct() 
 
                 if (mergedSongIds.isNotEmpty()) {
-                    // Create new playlist with merged songs
                     playlistPreferencesRepository.createPlaylist(newPlaylistName, mergedSongIds)
                     _playlistCreationEvent.emit(true)
                 }
@@ -1681,9 +1616,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Get all playlists with their song data for bulk operations
-     */
     suspend fun getPlaylistsWithSongs(playlistIds: List<String>): List<Pair<Playlist, List<Song>>> {
         return try {
             val selectedPlaylists = _uiState.value.playlists.filter { it.id in playlistIds }
@@ -1697,9 +1629,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Share all selected playlists as M3U files in a ZIP
-     */
     fun shareSelectedPlaylistsAsZip(playlistIds: List<String>, activity: android.app.Activity?) {
         if (activity == null) {
             Log.w("PlaylistViewModel", "Activity is null, cannot share")
@@ -1709,7 +1638,6 @@ class PlaylistViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 Log.d("PlaylistViewModel", "Starting share of ${playlistIds.size} playlists")
-                // Get all selected playlists with their songs
                 val playlistsWithSongs = getPlaylistsWithSongs(playlistIds)
 
                 if (playlistsWithSongs.isEmpty()) {
@@ -1723,7 +1651,6 @@ class PlaylistViewModel @Inject constructor(
                 val shareMimeType: String
 
                 if (playlistsWithSongs.size == 1) {
-                    // Single playlist: share M3U file directly
                     val (playlist, songs) = playlistsWithSongs.first()
                     val m3uContent = m3uManager.generateM3u(playlist, songs)
                     shareFileName = "${playlist.name}.m3u"
@@ -1732,7 +1659,6 @@ class PlaylistViewModel @Inject constructor(
                     shareMimeType = "audio/mpegurl"
                     Log.d("PlaylistViewModel", "Created M3U file: ${shareFile.absolutePath}, size: ${shareFile.length()} bytes")
                 } else {
-                    // Multiple playlists: create ZIP file
                     val zipFileName = "Playlists_${playlistsWithSongs.first().first.name}_and_${playlistsWithSongs.size - 1}_more.zip"
                     shareFile = File(context.cacheDir, zipFileName)
                     val outputStream = FileOutputStream(shareFile)
@@ -1752,7 +1678,6 @@ class PlaylistViewModel @Inject constructor(
                     Log.d("PlaylistViewModel", "Created ZIP file: ${shareFile.absolutePath}, size: ${shareFile.length()} bytes")
                 }
 
-                // Share the file
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.provider",
@@ -1778,20 +1703,13 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Merge multiple playlists into one new playlist
-     * @param playlistIds List of playlist IDs to merge
-     * @param newPlaylistName Name for the merged playlist
-     */
     fun mergePlaylistsIntoOne(playlistIds: List<String>, newPlaylistName: String) {
         if (playlistIds.isEmpty() || newPlaylistName.isEmpty()) return
 
         viewModelScope.launch {
             try {
-                // Get all playlists first
                 val currentPlaylists = _uiState.value.playlists
 
-                // Get all songs from selected playlists
                 val allSongs = mutableSetOf<String>()
                 playlistIds.forEach { playlistId ->
                     val playlist = currentPlaylists.find { it.id == playlistId }
@@ -1799,17 +1717,6 @@ class PlaylistViewModel @Inject constructor(
                         allSongs.addAll(playlist.songIds)
                     }
                 }
-
-                // Create new playlist with merged songs
-                val newPlaylist = Playlist(
-                    id = UUID.randomUUID().toString(),
-                    name = newPlaylistName,
-                    songIds = allSongs.toList(),
-                    createdAt = System.currentTimeMillis(),
-                    lastModified = System.currentTimeMillis(),
-                    isAiGenerated = false,
-                    isQueueGenerated = false
-                )
 
                 playlistPreferencesRepository.createPlaylist(
                     name = newPlaylistName,
@@ -1826,9 +1733,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Export selected playlists as M3U files to device storage
-     */
     fun exportPlaylistsAsM3u(playlistIds: List<String>) {
         if (playlistIds.isEmpty()) return
 
@@ -1872,12 +1776,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Re-fetches the currently displayed YouTube playlist from the remote API.
-     * Call this after toggling a song's like/favorite status so the playlist UI
-     * immediately reflects any server-side changes (e.g., a newly liked song
-     * appearing in the user's Liked Music playlist).
-     */
     fun refreshCurrentPlaylist() {
         val currentId = _uiState.value.currentPlaylistDetails?.id ?: return
         val source = _uiState.value.currentPlaylistDetails?.source
@@ -1900,7 +1798,6 @@ class PlaylistViewModel @Inject constructor(
 
     private fun parseYoutubeArtistNames(artistStr: String): List<String> {
         if (artistStr.isBlank()) return listOf("Unknown Artist")
-        // Split on common separators including natural-language " and " connector
         val parsed = artistStr
             .split(Regex("\\s*[,/&;+、•]\\s*|\\s+(?:feat\\.|ft\\.|vs)\\s+|\\s+and\\s+", RegexOption.IGNORE_CASE))
             .map { it.trim() }
@@ -1917,7 +1814,6 @@ class PlaylistViewModel @Inject constructor(
             try {
                 val playlist = playlistPreferencesRepository.userPlaylistsFlow.first().find { it.id == playlistId }
                 if (playlist != null && playlist.source == "YOUTUBE") {
-                    // Retry up to 3 times for mobile data reliability
                     var ytPlaylistResult = YouTube.playlist(playlistId)
                     var fetchAttempt = 0
                     while (ytPlaylistResult.isFailure && fetchAttempt < 2) {
@@ -1934,7 +1830,6 @@ class PlaylistViewModel @Inject constructor(
                         var pages = 0
                         while (continuation != null && pages < 20) {
                             var contResult = YouTube.playlistContinuation(continuation)
-                            // Retry once on failure
                             if (contResult.isFailure) {
                                 kotlinx.coroutines.delay(1000L)
                                 contResult = YouTube.playlistContinuation(continuation)
@@ -1950,7 +1845,6 @@ class PlaylistViewModel @Inject constructor(
                         }
                         val allNativeSongs = allYtSongs.map { it.toNativeSong() }
                         
-                        // Insert standard Room entity fields
                         val songsToInsert = allNativeSongs.map { song ->
                             val parsedArtists = parseYoutubeArtistNames(song.artist)
                             val primaryArtistName = parsedArtists.firstOrNull() ?: "Unknown Artist"
@@ -2001,7 +1895,6 @@ class PlaylistViewModel @Inject constructor(
                             )
                         }
                         
-                        // We also need to map the unique albums and artists to insert them to avoid foreign key violations
                         val uniqueArtists = allNativeSongs.flatMap { parseYoutubeArtistNames(it.artist) }.distinct().map { name ->
                             ArtistEntity(
                                 id = toUnifiedYoutubeArtistId(name),
@@ -2083,7 +1976,6 @@ class PlaylistViewModel @Inject constructor(
 
     fun downloadPlaylist(context: Context, playlistId: String, songs: List<Song>) {
         viewModelScope.launch(Dispatchers.IO) {
-            // Reset state before starting
             com.unshoo.pixelmusic.utils.SongDownloader.isCancelled = false
             com.unshoo.pixelmusic.utils.SongDownloader.isPaused = false
 
@@ -2126,5 +2018,15 @@ class PlaylistViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Helper to safely extract the remote YouTube Video ID
+     */
+    private fun Song.extractYoutubeId(fallbackId: String? = null): String? {
+        return this.youtubeId 
+            ?: if (this.contentUriString?.startsWith("youtube://") == true) this.contentUriString.substringAfter("youtube://")
+            else if (this.id.startsWith("youtube_")) this.id.removePrefix("youtube_")
+            else if (fallbackId?.startsWith("youtube_") == true) fallbackId.removePrefix("youtube_")
+            else null
+    }
 }
-    
