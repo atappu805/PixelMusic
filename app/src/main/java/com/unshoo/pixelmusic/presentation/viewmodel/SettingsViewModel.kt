@@ -251,6 +251,7 @@ class SettingsViewModel @Inject constructor(
     private val musicRepository: MusicRepository,
     private val backupManager: BackupManager,
     private val datastoreRepository: DatastoreRepository,
+    private val exoCache: com.unshoo.pixelmusic.data.remote.youtube.ExoCache,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -1058,6 +1059,10 @@ class SettingsViewModel @Inject constructor(
 
     fun loadDirectory(file: File) {
         fileExplorerStateHolder.loadDirectory(file)
+    }
+
+    fun clearExoPlayerCache() {
+        exoCache.clearAllCache()
     }
 
     fun primeExplorer() {
