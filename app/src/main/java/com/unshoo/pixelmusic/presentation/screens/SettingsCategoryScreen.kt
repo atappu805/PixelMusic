@@ -587,6 +587,36 @@ fun SettingsCategoryScreen(
                                     },
                                     valueText = { value -> "${value.toInt()} MB" }
                                 )
+                                SliderSettingsItem(
+                                label = stringResource(R.string.setcat_music_storage_limit_desc),
+                                value = storageLimitDraft,
+                                valueRange = 0f..10240f,
+                                steps = 20,
+                                onValueChange = { storageLimitDraft = it },
+                                onValueChangeFinished = {
+                                    val selectedLimit = storageLimitDraft.toInt()
+                                    if (selectedLimit != uiState.storageLimitMb) {
+                                        settingsViewModel.setStorageLimitMb(selectedLimit)
+                                    }
+                                },
+                                valueText = { value ->
+                                    if (value.toInt() == 0) "Unlimited"
+                                    else if (value >= 1024) "${(value / 1024).toInt()} GB"
+                                    else "${value.toInt()} MB"
+                                }
+                            )
+
+                            // NEW: Clear Cache Button
+                            ActionSettingsItem(
+                                title = "Clear Streaming Cache",
+                                subtitle = "Delete all temporary streaming data from your device.",
+                                icon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.secondary) },
+                                primaryActionLabel = "Clear Cache",
+                                onPrimaryAction = {
+                                    settingsViewModel.clearExoPlayerCache()
+                                    Toast.makeText(context, "Streaming cache cleared!", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                             }
 
                             SettingsSubsection(title = stringResource(R.string.setcat_sync_scanning)) {
