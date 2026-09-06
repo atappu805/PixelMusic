@@ -11,10 +11,11 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.unshoo.pixelmusic.MainActivity
 import com.unshoo.pixelmusic.R
+import com.unshoo.pixelmusic.ui.glancewidget.PlayerActions
 import java.util.Arrays
 
 object LiveNotificationHelper {
-    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v10"
+    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v11"
     private const val LIVE_NOTIFICATION_ID = 1002
 
     private var lastArtworkBytes: ByteArray? = null
@@ -28,8 +29,8 @@ object LiveNotificationHelper {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Clean up all the dead channels from previous tests
-            for (i in 1..9) {
+            // Clean up the graveyard of testing channels from your settings
+            for (i in 1..10) {
                 notificationManager.deleteNotificationChannel("pixelmusic_live_progress_v$i")
             }
             notificationManager.deleteNotificationChannel("pixelmusic_live_progress")
@@ -37,9 +38,9 @@ object LiveNotificationHelper {
             val channel = NotificationChannel(
                 LIVE_CHANNEL_ID,
                 "Dynamic Island Tracker",
-                NotificationManager.IMPORTANCE_MIN // Keeps it completely silent and collapsed
+                NotificationManager.IMPORTANCE_LOW // Keeps the top-left status bar clean of double icons!
             ).apply {
-                description = "Keep this notification for dynamic island"
+                description = "Keeps the OriginOS Dynamic Island active"
                 setShowBadge(false)
                 setSound(null, null)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_SECRET
@@ -48,7 +49,6 @@ object LiveNotificationHelper {
         }
     }
 
-    // Helper to format milliseconds into m:ss format
     private fun formatTimeMs(ms: Long): String {
         val totalSeconds = ms / 1000
         val minutes = totalSeconds / 60
@@ -63,7 +63,7 @@ object LiveNotificationHelper {
         positionMs: Long,
         durationMs: Long,
         artworkData: ByteArray?,
-        style: String // Controls what shows up in the right slot
+        style: String 
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -75,9 +75,24 @@ object LiveNotificationHelper {
             context, 0, appIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val prevIntent = PendingIntent.getService(
+            context, 1,
+            Intent(context, MusicService::class.java).apply { action = PlayerActions.PREVIOUS },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val playPauseIntent = PendingIntent.getService(
+            context, 2,
+            Intent(context, MusicService::class.java).apply { action = PlayerActions.PLAY_PAUSE },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val nextIntent = PendingIntent.getService(
+            context, 3,
+            Intent(context, MusicService::class.java).apply { action = PlayerActions.NEXT },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val safeDuration = durationMs.coerceAtLeast(0L)
 
-        // Generate the text based on the user's preference
         val criticalText = when (style) {
             "ANIMATED_NOTES" -> {
                 val currentNote = animatedNotes[noteIndex]
@@ -86,29 +101,28 @@ object LiveNotificationHelper {
             }
             "PROGRESS_TIME" -> "${formatTimeMs(positionMs)}/${formatTimeMs(safeDuration)}"
             "STATIC_ICON" -> "🎧"
-            else -> "🎧" // Default fallback
+            else -> "🎧" 
         }
 
+        // We MUST feed the builder the full UI so the Island can mirror it
         val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setSubText("OriginOS Dynamic Island Tracker") // Explains the card's existence to the user
             .setContentIntent(pendingAppIntent)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setRequestPromotedOngoing(true) 
             .setShortCriticalText(criticalText)
             .setSmallIcon(R.drawable.monochrome_player)
-            .setSortKey("zzzzz_ghost")
-
-        // 1. SILENT INJECTION: Feed the OriginOS Scraper directly via Bundle
-        builder.extras.putString(NotificationCompat.EXTRA_TITLE, title)
-        builder.extras.putString(NotificationCompat.EXTRA_TEXT, artist)
+            .setSortKey("zzzzz_ghost") // Forces the card to the bottom of the shade
 
         val progressPercent = if (safeDuration > 0L) {
             ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
         } else 0
 
-        // 2. PROGRESS
         if (Build.VERSION.SDK_INT >= 35) {
             try {
                 val segment = NotificationCompat.ProgressStyle.Segment(100)
@@ -127,14 +141,18 @@ object LiveNotificationHelper {
             builder.setProgress(100, progressPercent, safeDuration == 0L)
         }
 
-        // 3. SILENT ARTWORK
+        // RESTORED: Give the Island its art and buttons back
         val bitmap = getOrDecodeArtwork(artworkData)
         if (bitmap != null) {
-            builder.extras.putParcelable(NotificationCompat.EXTRA_LARGE_ICON, bitmap)
+            builder.setLargeIcon(bitmap)
         }
 
+        builder.addAction(android.R.drawable.ic_media_previous, "⏮", prevIntent)
+            .addAction(android.R.drawable.ic_media_pause, "❚❚", playPauseIntent)
+            .addAction(android.R.drawable.ic_media_next, "⏭", nextIntent)
+
         notificationManager.notify(LIVE_NOTIFICATION_ID, builder.build())
-    } // <-- Missing brace successfully restored
+    }
 
     private fun getOrDecodeArtwork(artworkData: ByteArray?): Bitmap? {
         if (artworkData == null || artworkData.isEmpty()) {
