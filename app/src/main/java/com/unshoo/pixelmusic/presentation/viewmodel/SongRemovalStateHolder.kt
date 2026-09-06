@@ -67,30 +67,28 @@ class SongRemovalStateHolder @Inject constructor(
     suspend fun removeSongFromLibrary(song: Song) {
         libraryStateHolder.removeSong(song.id)
         
-        // 1. Identify which playlists currently have this song BEFORE we delete it locally
         val currentPlaylists = playlistPreferencesRepository.userPlaylistsFlow.first()
         val playlistsContainingSong = currentPlaylists.filter { it.songIds.contains(song.id) }
 
-        // 2. Remove from local database
+        // FIX: Safely extract the raw Video ID even if it lacks the "youtube_" prefix
+        val videoId = song.youtubeId 
+            ?: if (song.contentUriString.startsWith("youtube://")) song.contentUriString.substringAfter("youtube://")
+            else if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_")
+            else if (song.id.toLongOrNull() == null) song.id // It's a raw string cloud ID
+            else null
+
+        // Remove from local database using unified logic
         val localId = song.id.toLongOrNull()
         if (localId != null) {
             musicRepository.deleteById(localId)
-        } else if (song.id.startsWith("youtube_") || song.youtubeId != null) {
-            val yId = song.youtubeId ?: song.id.removePrefix("youtube_")
-            val unifiedId = -(15_000_000_000_000L + yId.hashCode().toLong().absoluteValue)
+        } else if (!videoId.isNullOrBlank()) {
+            val unifiedId = -(15_000_000_000_000L + videoId.hashCode().toLong().absoluteValue)
             musicRepository.deleteById(unifiedId)
         }
         
-        // 3. Remove from local playlist records
         playlistPreferencesRepository.removeSongFromAllPlaylists(song.id)
 
-        // 4. Extract proper Video ID (Handling Local Room IDs correctly)
-        val videoId = song.youtubeId 
-            ?: if (song.contentUriString.startsWith("youtube://")) song.contentUriString.substringAfter("youtube://")
-            else if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") 
-            else null
-
-        // 5. Sync deletions to remote YouTube playlists so it doesn't come back on refresh!
+        // Sync deletions to remote YouTube playlists
         if (!videoId.isNullOrBlank()) {
             playlistsContainingSong.filter { it.source == "YOUTUBE" }.forEach { playlist ->
                 try {
