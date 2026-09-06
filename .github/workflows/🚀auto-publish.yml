@@ -1,4 +1,4 @@
-name: 🚀 Auto Release Build (Dual-Repo)
+name: 🚀 Final Release Build (Dual-Repo)
 
 on:
   workflow_dispatch: 
