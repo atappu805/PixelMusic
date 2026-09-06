@@ -10,6 +10,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.unshoo.pixelmusic.data.preferences.UserPreferencesRepository
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -17,7 +18,9 @@ object YoutubeModule {
 
     @Provides
     @Singleton
-    fun provideExoCache(@ApplicationContext context: Context): com.unshoo.pixelmusic.data.remote.youtube.ExoCache {
+    fun provideExoCache(@ApplicationContext context: Context),
+    userPreferencesRepository: UserPreferencesRepository
+   ): com.unshoo.pixelmusic.data.remote.youtube.ExoCache {
         return com.unshoo.pixelmusic.data.remote.youtube.ExoCache(context)
     }
 
