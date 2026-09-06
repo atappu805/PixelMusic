@@ -11,7 +11,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.unshoo.pixelmusic.MainActivity
 import com.unshoo.pixelmusic.R
-import com.unshoo.pixelmusic.ui.glancewidget.PlayerActions
 import java.util.Arrays
 
 object LiveNotificationHelper {
@@ -29,17 +28,16 @@ object LiveNotificationHelper {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // 1. Wipe out all the dead channels cluttering your settings
+            // Clean up all the dead channels from previous tests
             for (i in 1..9) {
                 notificationManager.deleteNotificationChannel("pixelmusic_live_progress_v$i")
             }
-            notificationManager.deleteNotificationChannel("pixelmusic_live_progress") // Catch-all
+            notificationManager.deleteNotificationChannel("pixelmusic_live_progress")
 
-            // 2. Create the true "Ghost" channel
             val channel = NotificationChannel(
                 LIVE_CHANNEL_ID,
                 "Dynamic Island Tracker",
-                NotificationManager.IMPORTANCE_MIN // <-- This forces Android to crush it into a tiny single line
+                NotificationManager.IMPORTANCE_MIN // Keeps it completely silent and collapsed
             ).apply {
                 description = "Keep this notification for dynamic island"
                 setShowBadge(false)
@@ -77,22 +75,6 @@ object LiveNotificationHelper {
             context, 0, appIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val prevIntent = PendingIntent.getService(
-            context, 1,
-            Intent(context, MusicService::class.java).apply { action = PlayerActions.PREVIOUS },
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val playPauseIntent = PendingIntent.getService(
-            context, 2,
-            Intent(context, MusicService::class.java).apply { action = PlayerActions.PLAY_PAUSE },
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val nextIntent = PendingIntent.getService(
-            context, 3,
-            Intent(context, MusicService::class.java).apply { action = PlayerActions.NEXT },
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
         val safeDuration = durationMs.coerceAtLeast(0L)
 
         // Generate the text based on the user's preference
@@ -107,53 +89,52 @@ object LiveNotificationHelper {
             else -> "🎧" // Default fallback
         }
 
-val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setContentIntent(pendingAppIntent)
-        .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-        .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-        .setRequestPromotedOngoing(true) 
-        .setShortCriticalText(criticalText)
-        .setSmallIcon(R.drawable.monochrome_player)
-        .setSortKey("zzzzz_ghost")
+        val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(pendingAppIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setRequestPromotedOngoing(true) 
+            .setShortCriticalText(criticalText)
+            .setSmallIcon(R.drawable.monochrome_player)
+            .setSortKey("zzzzz_ghost")
 
-    // 1. SILENT INJECTION: Feed the OriginOS Scraper without inflating the Android shade UI
-    builder.extras.putString(NotificationCompat.EXTRA_TITLE, title)
-    builder.extras.putString(NotificationCompat.EXTRA_TEXT, artist)
+        // 1. SILENT INJECTION: Feed the OriginOS Scraper directly via Bundle
+        builder.extras.putString(NotificationCompat.EXTRA_TITLE, title)
+        builder.extras.putString(NotificationCompat.EXTRA_TEXT, artist)
 
-    val progressPercent = if (safeDuration > 0L) {
-        ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
-    } else 0
+        val progressPercent = if (safeDuration > 0L) {
+            ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
+        } else 0
 
-    // 2. PROGRESS: Keep this as it's the core trigger for the tracker island
-    if (Build.VERSION.SDK_INT >= 35) {
-        try {
-            val segment = NotificationCompat.ProgressStyle.Segment(100)
-            segment.setColor(0xFFE91E63.toInt())
+        // 2. PROGRESS
+        if (Build.VERSION.SDK_INT >= 35) {
+            try {
+                val segment = NotificationCompat.ProgressStyle.Segment(100)
+                segment.setColor(0xFFE91E63.toInt())
 
-            val progressStyle = NotificationCompat.ProgressStyle()
-                .setProgressSegments(arrayListOf(segment))
-                .setStyledByProgress(true)
-                .setProgress(progressPercent)
+                val progressStyle = NotificationCompat.ProgressStyle()
+                    .setProgressSegments(arrayListOf(segment))
+                    .setStyledByProgress(true)
+                    .setProgress(progressPercent)
 
-            builder.setStyle(progressStyle)
-        } catch (_: Throwable) {
+                builder.setStyle(progressStyle)
+            } catch (_: Throwable) {
+                builder.setProgress(100, progressPercent, safeDuration == 0L)
+            }
+        } else {
             builder.setProgress(100, progressPercent, safeDuration == 0L)
         }
-    } else {
-        builder.setProgress(100, progressPercent, safeDuration == 0L)
-    }
 
-    // 3. SILENT ARTWORK: Inject bitmap directly to extras so it doesn't force a 72dp high card
-    val bitmap = getOrDecodeArtwork(artworkData)
-    if (bitmap != null) {
-        builder.extras.putParcelable(NotificationCompat.EXTRA_LARGE_ICON, bitmap)
-    }
+        // 3. SILENT ARTWORK
+        val bitmap = getOrDecodeArtwork(artworkData)
+        if (bitmap != null) {
+            builder.extras.putParcelable(NotificationCompat.EXTRA_LARGE_ICON, bitmap)
+        }
 
-    // Note: .addAction() calls are completely removed to strip the massive buttons from the shade.
-
-    notificationManager.notify(LIVE_NOTIFICATION_ID, builder.build())
+        notificationManager.notify(LIVE_NOTIFICATION_ID, builder.build())
+    } // <-- Missing brace successfully restored
 
     private fun getOrDecodeArtwork(artworkData: ByteArray?): Bitmap? {
         if (artworkData == null || artworkData.isEmpty()) {
