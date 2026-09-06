@@ -15,7 +15,7 @@ import com.unshoo.pixelmusic.ui.glancewidget.PlayerActions
 import java.util.Arrays
 
 object LiveNotificationHelper {
-    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v9"
+    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v10"
     private const val LIVE_NOTIFICATION_ID = 1002
 
     private var lastArtworkBytes: ByteArray? = null
@@ -29,13 +29,17 @@ object LiveNotificationHelper {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Delete the old noisy channel
-            notificationManager.deleteNotificationChannel("pixelmusic_live_progress_v7")
+            // 1. Wipe out all the dead channels cluttering your settings
+            for (i in 1..9) {
+                notificationManager.deleteNotificationChannel("pixelmusic_live_progress_v$i")
+            }
+            notificationManager.deleteNotificationChannel("pixelmusic_live_progress") // Catch-all
 
+            // 2. Create the true "Ghost" channel
             val channel = NotificationChannel(
                 LIVE_CHANNEL_ID,
                 "Dynamic Island Tracker",
-                NotificationManager.IMPORTANCE_LOW // Keeps it silent, removes status bar icon
+                NotificationManager.IMPORTANCE_MIN // <-- This forces Android to crush it into a tiny single line
             ).apply {
                 description = "Keep this notification for dynamic island"
                 setShowBadge(false)
