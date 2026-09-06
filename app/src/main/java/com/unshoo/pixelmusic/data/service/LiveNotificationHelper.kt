@@ -15,7 +15,7 @@ import com.unshoo.pixelmusic.ui.glancewidget.PlayerActions
 import java.util.Arrays
 
 object LiveNotificationHelper {
-    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v7"
+    private const val LIVE_CHANNEL_ID = "pixelmusic_live_progress_v9"
     private const val LIVE_NOTIFICATION_ID = 1002
 
     private var lastArtworkBytes: ByteArray? = null
@@ -29,12 +29,15 @@ object LiveNotificationHelper {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Delete the old noisy channel
+            notificationManager.deleteNotificationChannel("pixelmusic_live_progress_v7")
+
             val channel = NotificationChannel(
                 LIVE_CHANNEL_ID,
-                "Live Progress Tracker",
-                NotificationManager.IMPORTANCE_DEFAULT 
+                "Dynamic Island Tracker",
+                NotificationManager.IMPORTANCE_LOW // Keeps it silent, removes status bar icon
             ).apply {
-                description = "Drives the dynamic island progress pill"
+                description = "Keep this notification for dynamic island"
                 setShowBadge(false)
                 setSound(null, null)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_SECRET
@@ -103,14 +106,16 @@ object LiveNotificationHelper {
         val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentTitle(title)
-            .setContentText(artist)
+            .setContentTitle(title) // OriginOS reads this
+            .setContentText(artist) // OriginOS reads this
+            .setSubText("Keep this notification for dynamic island") // Your custom ghost message
             .setContentIntent(pendingAppIntent)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setRequestPromotedOngoing(true) 
-            .setShortCriticalText(criticalText) // Applying the dynamic text
+            .setShortCriticalText(criticalText)
             .setSmallIcon(R.drawable.monochrome_player)
+            .setSortKey("zzzzz_ghost") // Forces it to the absolute bottom
 
         val progressPercent = if (safeDuration > 0L) {
             ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
