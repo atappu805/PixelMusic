@@ -1,6 +1,7 @@
 package com.unshoo.pixelmusic.di
 
 import android.content.Context
+import com.unshoo.pixelmusic.data.preferences.UserPreferencesRepository
 import com.unshoo.pixelmusic.data.remote.youtube.DatastoreRepository
 import com.unshoo.pixelmusic.data.remote.youtube.SongRepository
 import com.unshoo.pixelmusic.data.remote.youtube.YoutubePlaylistDataSource
@@ -10,7 +11,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
-import com.unshoo.pixelmusic.data.preferences.UserPreferencesRepository
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -18,10 +18,11 @@ object YoutubeModule {
 
     @Provides
     @Singleton
-    fun provideExoCache(@ApplicationContext context: Context),
-    userPreferencesRepository: UserPreferencesRepository
-   ): com.unshoo.pixelmusic.data.remote.youtube.ExoCache {
-        return com.unshoo.pixelmusic.data.remote.youtube.ExoCache(context)
+    fun provideExoCache(
+        @ApplicationContext context: Context,
+        userPreferencesRepository: UserPreferencesRepository
+    ): com.unshoo.pixelmusic.data.remote.youtube.ExoCache {
+        return com.unshoo.pixelmusic.data.remote.youtube.ExoCache(context, userPreferencesRepository)
     }
 
     @Provides
@@ -41,8 +42,4 @@ object YoutubeModule {
     fun provideYoutubePlaylistDataSource(): YoutubePlaylistDataSource {
         return YoutubePlaylistDataSource()
     }
-
-    // Note: AutoQueueManager and QueuePreloadManager are Kotlin `object` singletons.
-    // They do not require Hilt providers — call .attach() / .detach() directly
-    // from your playback service's onCreate() / onDestroy().
 }
