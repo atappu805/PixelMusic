@@ -33,7 +33,7 @@ class DynamicLruCacheEvictor(
     override fun onCacheInitialized() {}
 
     override fun onStartFile(cache: Cache, cacheKey: String, position: Long, length: Long) {
-        if (length != C.LENGTH_UNSET) {
+        if (length != -1L) { // FIXED: Replaced C.LENGTH_UNSET with explicit Long to fix compiler error
             evictCache(cache, length)
         }
     }
@@ -101,25 +101,28 @@ class ExoCache(
 
     fun clearAllCache() {
         CoroutineScope(Dispatchers.IO).launch {
-            if (::cache.isInitialized) {
-                try {
-                    cache.keys.forEach { key ->
-                        cache.getCachedSpans(key).forEach { span ->
-                            cache.removeSpan(span)
-                        }
+            try {
+                // FIXED: Dropped the 'isInitialized' lateinit check. 
+                // Calling `cache` here safely initializes it so we can iterate and wipe the spans.
+                val keysToClear = cache.keys.toList()
+                keysToClear.forEach { key ->
+                    cache.getCachedSpans(key).forEach { span ->
+                        cache.removeSpan(span)
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
-            } else {
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Fallback aggressive wipe if the engine fails to delete the spans
                 SimpleCache.delete(cacheDir, databaseProvider)
             }
         }
     }
 
     fun release() {
-        if (::cache.isInitialized) {
+        try {
             cache.release()
+        } catch (e: Exception) {
+            // Safely ignore if the cache was never initialized to begin with
         }
     }
 
