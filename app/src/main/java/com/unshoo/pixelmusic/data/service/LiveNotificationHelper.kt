@@ -107,53 +107,53 @@ object LiveNotificationHelper {
             else -> "🎧" // Default fallback
         }
 
-        val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setContentTitle(title) // OriginOS reads this
-            .setContentText(artist) // OriginOS reads this
-            .setSubText("Keep this notification for dynamic island") // Your custom ghost message
-            .setContentIntent(pendingAppIntent)
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-            .setRequestPromotedOngoing(true) 
-            .setShortCriticalText(criticalText)
-            .setSmallIcon(R.drawable.monochrome_player)
-            .setSortKey("zzzzz_ghost") // Forces it to the absolute bottom
+val builder = NotificationCompat.Builder(context, LIVE_CHANNEL_ID)
+        .setOngoing(true)
+        .setOnlyAlertOnce(true)
+        .setContentIntent(pendingAppIntent)
+        .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+        .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+        .setRequestPromotedOngoing(true) 
+        .setShortCriticalText(criticalText)
+        .setSmallIcon(R.drawable.monochrome_player)
+        .setSortKey("zzzzz_ghost")
 
-        val progressPercent = if (safeDuration > 0L) {
-            ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
-        } else 0
+    // 1. SILENT INJECTION: Feed the OriginOS Scraper without inflating the Android shade UI
+    builder.extras.putString(NotificationCompat.EXTRA_TITLE, title)
+    builder.extras.putString(NotificationCompat.EXTRA_TEXT, artist)
 
-        if (Build.VERSION.SDK_INT >= 35) {
-            try {
-                val segment = NotificationCompat.ProgressStyle.Segment(100)
-                segment.setColor(0xFFE91E63.toInt())
+    val progressPercent = if (safeDuration > 0L) {
+        ((positionMs.toFloat() / safeDuration) * 100).toInt().coerceIn(0, 100)
+    } else 0
 
-                val progressStyle = NotificationCompat.ProgressStyle()
-                    .setProgressSegments(arrayListOf(segment))
-                    .setStyledByProgress(true)
-                    .setProgress(progressPercent)
+    // 2. PROGRESS: Keep this as it's the core trigger for the tracker island
+    if (Build.VERSION.SDK_INT >= 35) {
+        try {
+            val segment = NotificationCompat.ProgressStyle.Segment(100)
+            segment.setColor(0xFFE91E63.toInt())
 
-                builder.setStyle(progressStyle)
-            } catch (_: Throwable) {
-                builder.setProgress(100, progressPercent, safeDuration == 0L)
-            }
-        } else {
+            val progressStyle = NotificationCompat.ProgressStyle()
+                .setProgressSegments(arrayListOf(segment))
+                .setStyledByProgress(true)
+                .setProgress(progressPercent)
+
+            builder.setStyle(progressStyle)
+        } catch (_: Throwable) {
             builder.setProgress(100, progressPercent, safeDuration == 0L)
         }
-
-        builder.addAction(android.R.drawable.ic_media_previous, "⏮", prevIntent)
-            .addAction(android.R.drawable.ic_media_pause, "❚❚", playPauseIntent)
-            .addAction(android.R.drawable.ic_media_next, "⏭", nextIntent)
-
-        val bitmap = getOrDecodeArtwork(artworkData)
-        if (bitmap != null) {
-            builder.setLargeIcon(bitmap)
-        }
-
-        notificationManager.notify(LIVE_NOTIFICATION_ID, builder.build())
+    } else {
+        builder.setProgress(100, progressPercent, safeDuration == 0L)
     }
+
+    // 3. SILENT ARTWORK: Inject bitmap directly to extras so it doesn't force a 72dp high card
+    val bitmap = getOrDecodeArtwork(artworkData)
+    if (bitmap != null) {
+        builder.extras.putParcelable(NotificationCompat.EXTRA_LARGE_ICON, bitmap)
+    }
+
+    // Note: .addAction() calls are completely removed to strip the massive buttons from the shade.
+
+    notificationManager.notify(LIVE_NOTIFICATION_ID, builder.build())
 
     private fun getOrDecodeArtwork(artworkData: ByteArray?): Bitmap? {
         if (artworkData == null || artworkData.isEmpty()) {
