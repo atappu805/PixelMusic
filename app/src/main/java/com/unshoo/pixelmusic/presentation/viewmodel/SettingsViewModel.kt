@@ -879,9 +879,13 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            userPreferencesRepository.storageLimitMbFlow.collect { limit ->
-                _uiState.update { it.copy(storageLimitMb = limit) }
+        userPreferencesRepository.storageLimitMbFlow.collect { limit ->
+            _uiState.update { it.copy(storageLimitMb = limit) }
+            // Trigger sweep silently on boot to keep storage clean
+            withContext(Dispatchers.IO) {
+                enforceGlobalStorageLimit(limit)
             }
+        }
         }
 
         viewModelScope.launch {
@@ -1460,8 +1464,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setStorageLimitMb(limitMb: Int) {
-        viewModelScope.launch {
-            userPreferencesRepository.setStorageLimitMb(limitMb)
+    viewModelScope.launch(Dispatchers.IO) {
+        userPreferencesRepository.setStorageLimitMb(limitMb)
+        // Instantly sweep files when user drags slider down
+        enforceGlobalStorageLimit(limitMb)
         }
     }
 
