@@ -84,8 +84,13 @@ class SongRemovalStateHolder @Inject constructor(
         // 3. Remove from local playlist records
         playlistPreferencesRepository.removeSongFromAllPlaylists(song.id)
 
-        // 4. Sync deletions to remote YouTube playlists so it doesn't come back on refresh!
-        val videoId = song.youtubeId ?: if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") else null
+        // 4. Extract proper Video ID (Handling Local Room IDs correctly)
+        val videoId = song.youtubeId 
+            ?: if (song.contentUriString.startsWith("youtube://")) song.contentUriString.substringAfter("youtube://")
+            else if (song.id.startsWith("youtube_")) song.id.removePrefix("youtube_") 
+            else null
+
+        // 5. Sync deletions to remote YouTube playlists so it doesn't come back on refresh!
         if (!videoId.isNullOrBlank()) {
             playlistsContainingSong.filter { it.source == "YOUTUBE" }.forEach { playlist ->
                 try {
