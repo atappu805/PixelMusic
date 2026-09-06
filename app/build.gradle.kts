@@ -132,7 +132,7 @@ android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = false
         sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     buildFeatures {
