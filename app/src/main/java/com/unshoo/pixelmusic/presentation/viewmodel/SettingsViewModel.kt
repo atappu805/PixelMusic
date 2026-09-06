@@ -60,6 +60,9 @@ import com.unshoo.pixelmusic.data.model.Song
 import com.unshoo.pixelmusic.data.service.player.HiFiCapabilityChecker
 import com.unshoo.pixelmusic.utils.AppLocaleManager
 import java.io.File
+import coil.imageLoader
+
+
 
 data class SettingsUiState(
     val isLoadingDirectories: Boolean = false,
@@ -1066,8 +1069,44 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearExoPlayerCache() {
-        exoCache.clearAllCache()
+    viewModelScope.launch(Dispatchers.IO) {
+        // 1. Clear ExoPlayer RAM/Disk Cache
+        try { exoCache.clearAllCache() } catch (e: Exception) { e.printStackTrace() }
+        
+        // 2. Clear Umihi/InnerTube hidden files (The 1.48 GB Data Partition culprit)
+        try { com.unshoo.pixelmusic.data.database.youtube.AppDatabase.clearDownloads(context) } catch (e: Exception) { e.printStackTrace() }
+
+        // 3. Clear Coil Image Cache
+        try {
+            context.imageLoader.diskCache?.clear()
+            context.imageLoader.memoryCache?.clear()
+        } catch (e: Exception) { e.printStackTrace() }
     }
+}
+
+private fun enforceGlobalStorageLimit(limitMb: Int) {
+    if (limitMb <= 0) return 
+    val limitBytes = limitMb.toLong() * 1024 * 1024
+    
+    val downloadDir = com.unshoo.pixelmusic.data.remote.youtube.UmihiHelper.getDownloadDirectory(context)
+    if (!downloadDir.exists()) return
+    
+    val mediaFiles = downloadDir.listFiles()?.filter { it.isFile }?.toMutableList() ?: return
+    var totalSize = mediaFiles.sumOf { it.length() }
+    
+    if (totalSize > limitBytes) {
+        // Sort by oldest lastModified so we delete older songs first
+        mediaFiles.sortBy { it.lastModified() } 
+        
+        for (file in mediaFiles) {
+            if (totalSize <= limitBytes) break
+            val size = file.length()
+            if (file.delete()) {
+                totalSize -= size
+            }
+        }
+    }
+}
 
     fun primeExplorer() {
         fileExplorerStateHolder.primeExplorerRoot()
