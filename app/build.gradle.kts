@@ -132,7 +132,7 @@ android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = false
         sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION.VERSION_21
     }
 
     buildFeatures {
@@ -204,7 +204,7 @@ dependencies {
     implementation(libs.re2j)
     implementation(libs.rhino)
 
-// Fuel HTTP library (required by YoutubeRequestHelper)
+    // Fuel HTTP library (required by YoutubeRequestHelper)
     implementation(libs.fuel.android)
     implementation(libs.fuel.json)
 
@@ -238,6 +238,10 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
     implementation("io.github.dokar3:quickjs-kt:1.0.14")
+    
+    // FIX: Restored Automotive Dependencies
+    implementation(libs.androidx.app)
+    implementation(libs.androidx.app.projected)
 
     // DI & Navigation
     implementation(libs.hilt.android)
