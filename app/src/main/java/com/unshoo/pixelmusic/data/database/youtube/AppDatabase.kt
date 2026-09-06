@@ -30,12 +30,20 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE ?: buildDatabase(context).also { INSTANCE = it }
             }
 
-        suspend fun clearDownloads(context: Context) {
-            val instance = getInstance(context)
+            suspend fun clearDownloads(context: Context) {
+        val instance = getInstance(context)
 
-            instance.songRepository().deleteAll()
-            instance.playlistRepository().deleteAll()
+        instance.songRepository().deleteAll()
+        instance.playlistRepository().deleteAll()
+
+        // NEW: Physically delete the gigabytes of orphaned audio files
+        val downloadDir = com.unshoo.pixelmusic.data.remote.youtube.UmihiHelper.getDownloadDirectory(context)
+        if (downloadDir.exists()) {
+            downloadDir.listFiles()?.forEach { file ->
+                file.deleteRecursively()
+            }
         }
+            }
 
         private fun buildDatabase(context: Context) =
             Room.databaseBuilder(
