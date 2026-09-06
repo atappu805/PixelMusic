@@ -2023,10 +2023,14 @@ class PlaylistViewModel @Inject constructor(
      * Helper to safely extract the remote YouTube Video ID
      */
     private fun Song.extractYoutubeId(fallbackId: String? = null): String? {
-        return this.youtubeId 
-            ?: if (this.contentUriString?.startsWith("youtube://") == true) this.contentUriString.substringAfter("youtube://")
-            else if (this.id.startsWith("youtube_")) this.id.removePrefix("youtube_")
-            else if (fallbackId?.startsWith("youtube_") == true) fallbackId.removePrefix("youtube_")
-            else null
+        if (!this.youtubeId.isNullOrBlank()) return this.youtubeId
+        if (this.contentUriString?.startsWith("youtube://") == true) return this.contentUriString.substringAfter("youtube://")
+        if (this.id.startsWith("youtube_")) return this.id.removePrefix("youtube_")
+        if (this.id.toLongOrNull() == null) return this.id // Raw cloud ID
+        
+        val fallback = fallbackId?.removePrefix("youtube_")
+        if (fallback != null && fallback.toLongOrNull() == null) return fallback
+        
+        return null
     }
 }
