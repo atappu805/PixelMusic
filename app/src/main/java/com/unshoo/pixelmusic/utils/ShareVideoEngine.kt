@@ -9,6 +9,7 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import com.google.common.collect.ImmutableList // FIXED: Added Guava ImmutableList import
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -35,8 +36,8 @@ object ShareVideoEngine {
                     .setFrameRate(30)
                     .build()
                 
-                // FIXED: Pass the EditedMediaItem directly instead of wrapping in a List
-                val imageSequence = EditedMediaItemSequence(editedImage)
+                // FIXED: Wrap the EditedMediaItem in an ImmutableList
+                val imageSequence = EditedMediaItemSequence(ImmutableList.of(editedImage))
 
                 // 2. Prepare the audio track (Trimmed from 30s to 45s for the hook)
                 val audioMediaItem = MediaItem.Builder()
@@ -50,10 +51,11 @@ object ShareVideoEngine {
                     .build()
                 val editedAudio = EditedMediaItem.Builder(audioMediaItem).build()
                 
-                // FIXED: Pass the EditedMediaItem directly
-                val audioSequence = EditedMediaItemSequence(editedAudio)
+                // FIXED: Wrap the EditedMediaItem in an ImmutableList
+                val audioSequence = EditedMediaItemSequence(ImmutableList.of(editedAudio))
 
                 // 3. Combine them into a single hardware-accelerated composition
+                // mutableListOf is still valid here because Composition.Builder accepts standard Lists
                 val composition = Composition.Builder(mutableListOf(imageSequence, audioSequence)).build()
 
                 // 4. Configure Transformer for MP4 encoding
