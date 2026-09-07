@@ -662,26 +662,52 @@ fun ShareBottomSheet(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                             onClick = {
-                                captureAndShare { bitmap ->
-                                    val file = saveBitmapToCache(bitmap)
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        file
-                                    )
-                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "image/png"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        putExtra(
-                                            Intent.EXTRA_TEXT,
-                                            "${song.title}\n🎵 $GITHUB_LINK"
-                                        )
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(
-                                        Intent.createChooser(shareIntent, context.getString(R.string.share_sheet_chooser_title))
-                                    )
-                                }
+    captureAndShare { bitmap ->
+        scope.launch {
+            isCapturing = true 
+            try {
+                val imageFile = saveBitmapToCache(bitmap)
+                val audioPath = if (song.path.isNotBlank() && File(song.path).exists()) song.path else null
+                
+                if (audioPath == null) {
+                    // Fallback to static image for WhatsApp
+                    val fallbackUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imageFile)
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, fallbackUri)
+                        putExtra(Intent.EXTRA_TEXT, "${song.title}\n🎵 $GITHUB_LINK")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
+                    return@launch
+                }
+
+                // Render the MP4 Video for WhatsApp!
+                val outputMp4 = File(context.cacheDir, "whatsapp_share_${System.currentTimeMillis()}.mp4")
+                val success = com.unshoo.pixelmusic.utils.ShareVideoEngine.createInstagramShareVideo(
+                    context = context,
+                    imagePath = imageFile.absolutePath,
+                    audioPath = audioPath,
+                    outputPath = outputMp4.absolutePath
+                )
+
+                if (success) {
+                    val videoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outputMp4)
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "video/mp4"
+                        putExtra(Intent.EXTRA_STREAM, videoUri)
+                        putExtra(Intent.EXTRA_TEXT, "Listening to ${song.title} 🎵\n$GITHUB_LINK")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share Video"))
+                } else {
+                    withContext(Dispatchers.Main) { Toast.makeText(context, "Failed to render video", Toast.LENGTH_SHORT).show() }
+                }
+            } finally {
+                isCapturing = false
+            }
+        }
+    }
                             }
                         )
                     }
