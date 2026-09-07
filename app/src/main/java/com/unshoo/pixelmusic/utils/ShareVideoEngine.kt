@@ -35,8 +35,8 @@ object ShareVideoEngine {
                     .setFrameRate(30)
                     .build()
                 
-                // FIXED: Pass the EditedMediaItem directly
-                val imageSequence = EditedMediaItemSequence(editedImage)
+                // FIXED: Use the Media3 1.9.0 static factory method for a video track
+                val imageSequence = EditedMediaItemSequence.withVideoFrom(listOf(editedImage))
 
                 // 2. Prepare the audio track (Trimmed from 30s to 45s for the hook)
                 val audioMediaItem = MediaItem.Builder()
@@ -50,12 +50,12 @@ object ShareVideoEngine {
                     .build()
                 val editedAudio = EditedMediaItem.Builder(audioMediaItem).build()
                 
-                // FIXED: Pass the EditedMediaItem directly
-                val audioSequence = EditedMediaItemSequence(editedAudio)
+                // FIXED: Use the Media3 1.9.0 static factory method for an audio track
+                val audioSequence = EditedMediaItemSequence.withAudioFrom(listOf(editedAudio))
 
                 // 3. Combine them into a single hardware-accelerated composition
-                // FIXED: Pass the sequences directly as comma-separated varargs, removing mutableListOf
-                val composition = Composition.Builder(imageSequence, audioSequence).build()
+                // Composition.Builder safely accepts a standard List of sequences
+                val composition = Composition.Builder(listOf(imageSequence, audioSequence)).build()
 
                 // 4. Configure Transformer for MP4 encoding
                 val transformer = Transformer.Builder(context)
