@@ -34,8 +34,9 @@ object ShareVideoEngine {
                     .setDurationUs(15_000_000L) // 15 seconds
                     .setFrameRate(30)
                     .build()
-                // FIX: Use mutableListOf() to satisfy Kotlin-to-Java interop
-                val imageSequence = EditedMediaItemSequence(mutableListOf(editedImage))
+                
+                // FIXED: Pass the EditedMediaItem directly instead of wrapping in a List
+                val imageSequence = EditedMediaItemSequence(editedImage)
 
                 // 2. Prepare the audio track (Trimmed from 30s to 45s for the hook)
                 val audioMediaItem = MediaItem.Builder()
@@ -48,11 +49,11 @@ object ShareVideoEngine {
                     )
                     .build()
                 val editedAudio = EditedMediaItem.Builder(audioMediaItem).build()
-                // FIX: Use mutableListOf() 
-                val audioSequence = EditedMediaItemSequence(mutableListOf(editedAudio))
+                
+                // FIXED: Pass the EditedMediaItem directly
+                val audioSequence = EditedMediaItemSequence(editedAudio)
 
                 // 3. Combine them into a single hardware-accelerated composition
-                // FIX: Use mutableListOf() for the composition builder as well
                 val composition = Composition.Builder(mutableListOf(imageSequence, audioSequence)).build()
 
                 // 4. Configure Transformer for MP4 encoding
