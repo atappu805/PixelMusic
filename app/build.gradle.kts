@@ -192,6 +192,8 @@ kotlin {
 }
 
 dependencies {
+
+    implementation("com.google.guava:guava:32.1.3-android")
     // InnerTube dependencies merged
     implementation(libs.ktor.client.core)
     implementation("dev.turingcomplete:kotlin-onetimepassword:2.4.1")
