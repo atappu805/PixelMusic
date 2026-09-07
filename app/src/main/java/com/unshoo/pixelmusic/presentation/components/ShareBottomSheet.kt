@@ -537,34 +537,44 @@ fun ShareBottomSheet(
                                 containerColor = Color(0xFFE1306C).copy(alpha = 0.12f),
                                 contentColor = Color(0xFFE1306C),
                                 onClick = {
-                                    captureAndShare { bitmap ->
-                                        val file = saveBitmapToCache(bitmap)
-                                        val uri = FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            file
-                                        )
-                                        val topColor = when (activeThemeStyle) {
-                                            ShareThemeStyle.DYNAMIC_PALETTE -> colorScheme.primaryContainer
-                                            ShareThemeStyle.SOOTHING_GRADIENT -> primaryColor
-                                            ShareThemeStyle.BLURRED_ARTWORK -> primaryColor.copy(alpha = 0.5f)
-                                            ShareThemeStyle.MIDNIGHT_MINIMAL -> Color(0xFF0A0A0A)
-                                            ShareThemeStyle.VIBRANT_GLOW -> primaryColor
+                                captureAndShare { bitmap ->
+                                    scope.launch {
+                                        isCapturing = true // Keeps your loading spinner spinning during render
+                                        try {
+                                            // 1. Save your custom UI snapshot
+                                            val imageFile = saveBitmapToCache(bitmap)
+                                            
+                                            // 2. Verify we have the local audio file downloaded
+                                            val audioPath = if (song.path.isNotBlank() && File(song.path).exists()) song.path else null
+                                            
+                                            if (audioPath == null) {
+                                                // Fallback: If streaming/not downloaded, just share the silent image
+                                                val fallbackUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imageFile)
+                                                shareToInstagramStory(context, fallbackUri, null, null)
+                                                return@launch
+                                            }
+
+                                            // 3. Trigger hardware-accelerated video rendering
+                                            val outputMp4 = File(context.cacheDir, "insta_share_${System.currentTimeMillis()}.mp4")
+                                            val success = com.unshoo.pixelmusic.utils.ShareVideoEngine.createInstagramShareVideo(
+                                                context = context,
+                                                imagePath = imageFile.absolutePath,
+                                                audioPath = audioPath,
+                                                outputPath = outputMp4.absolutePath
+                                            )
+
+                                            // 4. Push directly to Instagram
+                                            if (success) {
+                                                val videoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outputMp4)
+                                                shareToInstagramStory(context, videoUri, null, null)
+                                            } else {
+                                                withContext(Dispatchers.Main) { Toast.makeText(context, "Failed to render video", Toast.LENGTH_SHORT).show() }
+                                            }
+                                        } finally {
+                                            isCapturing = false // Hide spinner
                                         }
-                                        val bottomColor = when (activeThemeStyle) {
-                                            ShareThemeStyle.DYNAMIC_PALETTE -> colorScheme.surfaceContainerLow
-                                            ShareThemeStyle.SOOTHING_GRADIENT -> colorScheme.surfaceContainerHighest
-                                            ShareThemeStyle.BLURRED_ARTWORK -> Color(0xFF141414)
-                                            ShareThemeStyle.MIDNIGHT_MINIMAL -> Color(0xFF0A0A0A)
-                                            ShareThemeStyle.VIBRANT_GLOW -> secondaryColor
-                                        }
-                                        shareToInstagramStory(
-                                            context = context,
-                                            imageUri = uri,
-                                            topColorHex = topColor.toInstagramHex(),
-                                            bottomColorHex = bottomColor.toInstagramHex()
-                                        )
                                     }
+                                }
                                 }
                             )
                         }
@@ -1395,27 +1405,27 @@ private fun Color.toInstagramHex(): String {
 
 private fun shareToInstagramStory(
     context: Context,
-    imageUri: android.net.Uri,
+    mediaUri: android.net.Uri, // Renamed from imageUri
     topColorHex: String? = null,
     bottomColorHex: String? = null
 ) {
-    context.grantUriPermission(INSTAGRAM_PACKAGE, imageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.grantUriPermission(INSTAGRAM_PACKAGE, mediaUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    // Dynamically set MIME type so Instagram treats it as an audio-enabled video!
+    val mimeType = if (mediaUri.toString().endsWith(".mp4")) "video/mp4" else "image/png"
 
     val intent = Intent("com.instagram.share.ADD_TO_STORY").apply {
-        type = "image/png"
-        putExtra("interactive_asset_uri", imageUri)
+        type = mimeType
+        putExtra("interactive_asset_uri", mediaUri)
         putExtra("content_url", GITHUB_LINK)
         putExtra("source_application", "1703718787517231")
         
-        if (topColorHex != null) {
-            putExtra("top_background_color", topColorHex)
-        }
-        if (bottomColorHex != null) {
-            putExtra("bottom_background_color", bottomColorHex)
-        }
+        if (topColorHex != null) putExtra("top_background_color", topColorHex)
+        if (bottomColorHex != null) putExtra("bottom_background_color", bottomColorHex)
+        
         `package` = INSTAGRAM_PACKAGE
         
-        clipData = ClipData.newRawUri("", imageUri)
+        clipData = ClipData.newRawUri("", mediaUri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     
@@ -1423,16 +1433,12 @@ private fun shareToInstagramStory(
         context.startActivity(intent)
     } catch (e: Exception) {
         val fallback = Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(Intent.EXTRA_STREAM, imageUri)
+            type = mimeType
+            putExtra(Intent.EXTRA_STREAM, mediaUri)
             `package` = INSTAGRAM_PACKAGE
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        try {
-            context.startActivity(fallback)
-        } catch (ex: Exception) {
-            Toast.makeText(context, "Instagram not available", Toast.LENGTH_SHORT).show()
-        }
+        try { context.startActivity(fallback) } catch (ex: Exception) { Toast.makeText(context, "Instagram not available", Toast.LENGTH_SHORT).show() }
     }
 }
 
