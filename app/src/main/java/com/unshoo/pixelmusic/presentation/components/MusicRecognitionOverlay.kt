@@ -146,9 +146,9 @@ fun MusicRecognitionOverlay(
         Modifier
     }
 
-    val overlayBackground = Color.Black.copy(alpha = 0.78f)
-    val textColor = Color.White
-    val subTextColor = Color.White.copy(alpha = 0.70f)
+    val overlayBackground = MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f)
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     // ANIMATION SETUP
     val offscreenStartY = with(density) {
