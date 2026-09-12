@@ -136,6 +136,9 @@ import com.unshoo.pixelmusic.ui.modifiers.scrollMotionBlur
 import androidx.compose.material3.TextButton
 import com.unshoo.pixelmusic.presentation.components.HomeShuffleFab
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 
 
 
@@ -649,10 +652,14 @@ fun ExploreScreen(
 
     // Music recognition — triggered by long-press or swipe-up on the FAB.
     // Uses the full-screen island-style overlay for a polished entry/exit animation.
-    if (showRecognitionDialog) {
-        MusicRecognitionOverlay(
-            isExternalWindow = true,
-            onDismiss = { showRecognitionDialog = false },
+AnimatedVisibility(
+    visible = showRecognitionDialog,
+    enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)),
+    exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing))
+) {
+    MusicRecognitionOverlay(
+        isExternalWindow = false,
+        onDismiss = { showRecognitionDialog = false },
             onPlayMusic = { recognizedSong ->
                 showRecognitionDialog = false
                 scope.launch {
