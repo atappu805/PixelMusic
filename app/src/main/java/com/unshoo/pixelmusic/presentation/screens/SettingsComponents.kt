@@ -92,7 +92,7 @@ val LocalSettingsHighlightTitle = compositionLocalOf<String?> { null }
  * of a settings-search navigation.
  */
 @Composable
-private fun HighlightPulseOverlay(shape: Shape) {
+private fun androidx.compose.foundation.layout.BoxScope.HighlightPulseOverlay(shape: Shape) {
     val transition = rememberInfiniteTransition(label = "settingsHighlightPulse")
     val alpha by transition.animateFloat(
         initialValue = 0.15f,
