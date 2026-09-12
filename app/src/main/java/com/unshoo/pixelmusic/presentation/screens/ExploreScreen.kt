@@ -135,6 +135,7 @@ import kotlinx.coroutines.withContext
 import com.unshoo.pixelmusic.ui.modifiers.scrollMotionBlur
 import androidx.compose.material3.TextButton
 import com.unshoo.pixelmusic.presentation.components.HomeShuffleFab
+import androidx.compose.material.icons.rounded.ChevronRight
 
 
 
@@ -646,9 +647,11 @@ fun ExploreScreen(
         )
     }
 
-    // Music recognition dialog — triggered by long-press or swipe-up on the FAB
+    // Music recognition — triggered by long-press or swipe-up on the FAB.
+    // Uses the full-screen island-style overlay for a polished entry/exit animation.
     if (showRecognitionDialog) {
-        MusicRecognitionDialog(
+        MusicRecognitionOverlay(
+            isExternalWindow = true,
             onDismiss = { showRecognitionDialog = false },
             onPlayMusic = { recognizedSong ->
                 showRecognitionDialog = false
@@ -789,7 +792,8 @@ fun SongBigBoxCarousel(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(chunks) { chunk ->
+        items(chunks.size) { chunkIndex ->
+            val chunk = chunks[chunkIndex]
             val anim = rememberDynamicEffect(
                 baseCornerRadius = 24.dp,
                 squishCornerRadius = 54.dp,
@@ -798,64 +802,33 @@ fun SongBigBoxCarousel(
             )
             Card(
                 shape = RoundedCornerShape(anim.cornerRadius),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
                 modifier = Modifier
-                    .width(300.dp)
+                    .width(320.dp)
                     .wrapContentHeight()
                     .then(anim.modifier)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    chunk.forEach { song ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable {
-                                    playerViewModel.showAndPlaySong(
-                                        song = song,
-                                        contextSongs = nativeSongs,
-                                        queueName = sectionTitle
-                                    )
-                                }
-                                .padding(6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            SmartImage(
-                                model = song.albumArtUriString,
-                                contentDescription = song.title,
-                                contentScale = ContentScale.Crop,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.size(46.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = song.artist,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    chunk.forEachIndexed { index, song ->
+                        val globalRank = chunkIndex * 3 + index + 1
+                        SongChartRow(
+                            rank = globalRank,
+                            song = song,
+                            onClick = {
+                                playerViewModel.showAndPlaySong(
+                                    song = song,
+                                    contextSongs = nativeSongs,
+                                    queueName = sectionTitle
                                 )
                             }
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        )
                     }
                 }
             }
@@ -863,6 +836,63 @@ fun SongBigBoxCarousel(
     }
 }
 
+@Composable
+private fun SongChartRow(
+    rank: Int,
+    song: Song,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Big editorial rank number
+        Text(
+            text = rank.toString().padStart(2, '0'),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = GoogleSansRounded
+            ),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.width(38.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Subtle chevron indicating tap target
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
 @Composable
 fun MixedStationCarousel(
     items: List<YTItem>,
