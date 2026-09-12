@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,8 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.unshoo.pixelmusic.R
+import com.unshoo.pixelmusic.presentation.model.RecentSearchesStore
 import com.unshoo.pixelmusic.presentation.model.SearchableSetting
 import com.unshoo.pixelmusic.presentation.model.SettingsSearchCatalog
+import com.unshoo.pixelmusic.presentation.navigation.Screen
 import com.unshoo.pixelmusic.presentation.navigation.navigateSafely
 import com.unshoo.pixelmusic.ui.theme.GoogleSansRounded
 import kotlinx.coroutines.delay
@@ -72,16 +76,36 @@ fun SettingsSearchScreen(
     navController: NavController,
     onBackClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
+    var recentSearches by remember { mutableStateOf(RecentSearchesStore.load(context)) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val results = remember(query) { SettingsSearchCatalog.search(query) }
 
+    val results = remember(query) { SettingsSearchCatalog.search(query) }
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LaunchedEffect(Unit) {
         delay(180)
         focusRequester.requestFocus()
+    }
+
+    /** Navigate + persist the query. */
+    fun openSetting(setting: SearchableSetting, queryUsed: String) {
+        keyboard?.hide()
+        val q = queryUsed.trim()
+        if (q.isNotEmpty()) {
+            recentSearches = RecentSearchesStore.add(context, q)
+        }
+
+        // If the setting belongs to a category, use the highlight-aware route
+        val target = setting.category?.let { cat ->
+            Screen.SettingsCategory.createRouteWithHighlight(cat.id, setting.title)
+        } ?: setting.route
+
+        // Pop the search screen so back returns cleanly to Settings
+        navController.popBackStack()
+        navController.navigateSafely(target)
     }
 
     Surface(
@@ -92,7 +116,7 @@ fun SettingsSearchScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ─── Search bar header ──────────────────────────────────────────────
+            // ─── Search bar header ─────────────────────────────────────────────
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
@@ -158,9 +182,17 @@ fun SettingsSearchScreen(
                 }
             }
 
-            // ─── Results ────────────────────────────────────────────────────────
+            // ─── Body: results / recents / empty ───────────────────────────────
             when {
-                query.isBlank() -> EmptySearchHint()
+                query.isBlank() && recentSearches.isEmpty() -> EmptySearchHint()
+                query.isBlank() -> RecentSearchesList(
+                    recents = recentSearches,
+                    onQuerySelected = { q -> query = q },
+                    onClearAll = {
+                        RecentSearchesStore.clear(context)
+                        recentSearches = emptyList()
+                    }
+                )
                 results.isEmpty() -> NoResultsHint(query)
                 else -> {
                     LazyColumn(
@@ -185,12 +217,7 @@ fun SettingsSearchScreen(
                         items(results, key = { it.title + it.route }) { setting ->
                             SearchResultRow(
                                 setting = setting,
-                                onClick = {
-                                    keyboard?.hide()
-                                    // Pop search so back returns to Settings
-                                    navController.popBackStack()
-                                    navController.navigateSafely(setting.route)
-                                }
+                                onClick = { openSetting(setting, query) }
                             )
                         }
                     }
@@ -249,6 +276,81 @@ private fun SearchResultRow(
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         maxLines = 1,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchesList(
+    recents: List<String>,
+    onQuerySelected: (String) -> Unit,
+    onClearAll: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp, end = 16.dp, top = 12.dp,
+            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.History,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Recent searches",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Clear",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable(onClick = onClearAll)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+        items(recents) { q ->
+            Surface(
+                onClick = { onQuerySelected(q) },
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = q,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
