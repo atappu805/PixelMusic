@@ -45,7 +45,6 @@ import coil.compose.AsyncImage
 import com.unshoo.pixelmusic.data.shazam.MusicRecognizer
 import com.unshoo.pixelmusic.data.shazam.RecognitionResult
 import com.unshoo.pixelmusic.data.shazam.RecognitionStatus
-import com.unshoo.pixelmusic.ui.effects.recognitionRippleEffect
 import com.unshoo.pixelmusic.ui.effects.successSweepEffect
 import com.unshoo.pixelmusic.ui.theme.GoogleSansRounded
 import kotlin.math.abs
@@ -62,8 +61,8 @@ fun MusicRecognitionOverlay(
 ) {
     var status by remember { mutableStateOf<RecognitionStatus>(RecognitionStatus.Ready) }
     var isOpeningApp by remember { mutableStateOf(false) }
-    var isClosing by remember { mutableStateOf(false) } // NEW: Tracks the exit animation state
-    
+    var isClosing by remember { mutableStateOf(false) }
+
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -140,10 +139,9 @@ fun MusicRecognitionOverlay(
     val isListening = status is RecognitionStatus.Listening
     val isSuccess = status is RecognitionStatus.Success
 
+    // Success sweep only — ripple-on-listening removed
     val rootShaderModifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Modifier
-            .recognitionRippleEffect(isTriggered = isListening)
-            .successSweepEffect(isTriggered = isSuccess)
+        Modifier.successSweepEffect(isTriggered = isSuccess)
     } else {
         Modifier
     }
@@ -153,29 +151,27 @@ fun MusicRecognitionOverlay(
     val subTextColor = Color.White.copy(alpha = 0.70f)
 
     // ANIMATION SETUP
-    val offscreenStartY = with(density) { 
-        if (isExternalWindow) -250.dp.toPx() else -(screenHeight.toPx() + 450.dp.toPx()) 
+    val offscreenStartY = with(density) {
+        if (isExternalWindow) -250.dp.toPx() else -(screenHeight.toPx() + 450.dp.toPx())
     }
     val cardDropOffsetY = remember { Animatable(offscreenStartY) }
-    
+
     val initialScale = if (isExternalWindow) 0.4f else 1f
     val cardScale = remember { Animatable(initialScale) }
-    
+
     val initialAlpha = if (isExternalWindow) 0f else 1f
     val cardAlpha = remember { Animatable(initialAlpha) }
-    
-    val rootAlpha = remember { Animatable(1f) } // NEW: Controls the entire background fade
 
-    // Safe Dismiss Trigger (Protects internal app behavior)
+    val rootAlpha = remember { Animatable(1f) }
+
     val triggerDismiss: () -> Unit = {
         if (isExternalWindow) {
             if (!isClosing) isClosing = true
         } else {
-            onDismiss() // Original immediate closure for the internal app
+            onDismiss()
         }
     }
 
-    // Intercept System Back Button
     if (isExternalWindow) {
         BackHandler(enabled = !isClosing) {
             triggerDismiss()
@@ -188,7 +184,7 @@ fun MusicRecognitionOverlay(
             cardDropOffsetY.snapTo(offscreenStartY)
             cardScale.snapTo(initialScale)
             cardAlpha.snapTo(initialAlpha)
-            
+
             if (isExternalWindow) {
                 launch {
                     cardDropOffsetY.animateTo(
@@ -219,15 +215,13 @@ fun MusicRecognitionOverlay(
         }
     }
 
-    // EXIT ANIMATIONS (Runs when triggerDismiss sets isClosing = true)
+    // EXIT ANIMATIONS
     LaunchedEffect(isClosing) {
         if (isClosing && isExternalWindow) {
-            // Fade out the dark background overlay smoothly
             launch {
                 rootAlpha.animateTo(targetValue = 0f, animationSpec = tween(durationMillis = 350))
             }
 
-            // Fly the card back up into the island if it's currently showing
             if (status is RecognitionStatus.Success) {
                 launch {
                     cardDropOffsetY.animateTo(
@@ -244,12 +238,11 @@ fun MusicRecognitionOverlay(
                 launch {
                     cardAlpha.animateTo(
                         targetValue = 0f,
-                        animationSpec = tween(durationMillis = 250) // Fades out slightly before it hits the top
+                        animationSpec = tween(durationMillis = 250)
                     )
                 }
             }
-            
-            // Wait for the longest animation (the 350ms background fade) to finish, then kill the Activity
+
             delay(350)
             onDismiss()
         }
@@ -258,7 +251,7 @@ fun MusicRecognitionOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .alpha(if (isExternalWindow) rootAlpha.value else 1f) // NEW: Applies the root fade
+            .alpha(if (isExternalWindow) rootAlpha.value else 1f)
             .then(rootShaderModifier)
             .clip(RoundedCornerShape(screenCornerRadius))
             .background(overlayBackground)
