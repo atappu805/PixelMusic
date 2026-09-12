@@ -297,9 +297,9 @@ fun MusicRecognitionOverlay(
                             indication = null,
                             onClick = {}
                         ),
-                    shape = AbsoluteSmoothCornerShape(32.dp, 60),
-                    color = Color(0xFF1E1E1E),
-                    tonalElevation = 8.dp,
+shape = AbsoluteSmoothCornerShape(32.dp, 60),
+color = MaterialTheme.colorScheme.surfaceContainerHigh,
+tonalElevation = 8.dp,
                     shadowElevation = 18.dp
                 ) {
                     Column(
@@ -315,8 +315,8 @@ fun MusicRecognitionOverlay(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .size(width = 210.dp, height = 265.dp)
-                                .clip(AbsoluteSmoothCornerShape(22.dp, 60))
-                                .background(Color(0xFF2C2C2C))
+.clip(AbsoluteSmoothCornerShape(22.dp, 60))
+.background(MaterialTheme.colorScheme.surfaceContainerHighest)
                         )
 
                         Spacer(modifier = Modifier.height(18.dp))
