@@ -591,7 +591,7 @@ fun SearchHistoryList(
             modifier = Modifier
                 .fillMaxSize()
                 .scrollMotionBlur(historyListState, enabled = isMotionBlurEnabled),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = PaddingValues(
                 top = 8.dp,
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 160.dp
@@ -614,35 +614,44 @@ fun SearchHistoryListItem(
     onHistoryClick: (String) -> Unit,
     onHistoryDelete: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) { detectTapGestures(onTap = { onHistoryClick(item.query) }) }
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+    Surface(
+        onClick = { onHistoryClick(item.query) },
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 imageVector = Icons.Rounded.History,
                 contentDescription = stringResource(R.string.cd_search_history_icon),
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = item.query,
                 style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-        }
-        IconButton(onClick = { onHistoryDelete(item.query) }) {
-            Icon(
-                imageVector = Icons.Rounded.DeleteForever,
-                contentDescription = stringResource(R.string.cd_delete_search_history_item),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
+            IconButton(
+                onClick = { onHistoryDelete(item.query) },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteForever,
+                    contentDescription = stringResource(R.string.cd_delete_search_history_item),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
