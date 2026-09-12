@@ -56,6 +56,7 @@ import com.unshoo.pixelmusic.presentation.screens.AboutScreen
 import com.unshoo.pixelmusic.presentation.screens.ArtistAlbumsAllScreen
 import com.unshoo.pixelmusic.presentation.screens.ArtistSongsAllScreen
 import com.unshoo.pixelmusic.presentation.screens.SearchScreen
+import com.unshoo.pixelmusic.presentation.screens.SettingsSearchScreen
 import com.unshoo.pixelmusic.presentation.screens.StatsScreen
 import com.unshoo.pixelmusic.presentation.screens.SettingsScreen
 import com.unshoo.pixelmusic.presentation.screens.SettingsCategoryScreen
@@ -121,8 +122,8 @@ fun AppNavigation(
             ) {
                 ScreenWrapper(navController = navController, playerViewModel = playerViewModel) {
                     HomeScreen(
-                        navController = navController, 
-                        paddingValuesParent = paddingValues, 
+                        navController = navController,
+                        paddingValuesParent = paddingValues,
                         playerViewModel = playerViewModel,
                         onOpenSidebar = onOpenSidebar
                     )
@@ -260,6 +261,20 @@ fun AppNavigation(
                 }
             }
             composable(
+                Screen.SettingsSearch.route,
+                enterTransition = { enterTransition() },
+                exitTransition = { exitTransition() },
+                popEnterTransition = { popEnterTransition() },
+                popExitTransition = { popExitTransition() },
+            ) {
+                ScreenWrapper(navController = navController, playerViewModel = playerViewModel) {
+                    SettingsSearchScreen(
+                        navController = navController,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+            }
+            composable(
                 Screen.Accounts.route,
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
@@ -280,7 +295,14 @@ fun AppNavigation(
             }
             composable(
                 route = Screen.SettingsCategory.route,
-                arguments = listOf(navArgument("categoryId") { type = NavType.StringType }),
+                arguments = listOf(
+                    navArgument("categoryId") { type = NavType.StringType },
+                    navArgument("highlight") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                ),
                 enterTransition = { enterTransition() },
                 exitTransition = { exitTransition() },
                 popEnterTransition = { popEnterTransition() },
@@ -288,11 +310,13 @@ fun AppNavigation(
             ) { backStackEntry ->
                 ScreenWrapper(navController = navController, playerViewModel = playerViewModel) {
                     val categoryId = backStackEntry.arguments?.getString("categoryId")
+                    val highlight = backStackEntry.arguments?.getString("highlight")
                     if (categoryId != null) {
                         SettingsCategoryScreen(
                             categoryId = categoryId,
                             navController = navController,
                             playerViewModel = playerViewModel,
+                            highlightTitle = highlight,
                             onBackClick = { navController.popBackStack() }
                         )
                     }
@@ -626,14 +650,14 @@ fun AppNavigation(
                     )
                 }
             }
-        composable(
-            route = "update_download",
-            deepLinks = listOf(androidx.navigation.navDeepLink { uriPattern = "pixelmusic://update_download" })
-        ) {
-            ScreenWrapper(navController = navController, playerViewModel = playerViewModel) {
-                com.unshoo.pixelmusic.presentation.screens.UpdateDownloadScreen(navController = navController)
+            composable(
+                route = "update_download",
+                deepLinks = listOf(androidx.navigation.navDeepLink { uriPattern = "pixelmusic://update_download" })
+            ) {
+                ScreenWrapper(navController = navController, playerViewModel = playerViewModel) {
+                    com.unshoo.pixelmusic.presentation.screens.UpdateDownloadScreen(navController = navController)
+                }
             }
-        }
         }
     }
 }
@@ -650,10 +674,8 @@ private enum class MainRootDirection {
     BACKWARD
 }
 
-// Base duration for bottom-nav switches at 1x — at 0.5x system scale = ~190 ms.
 private const val BOTTOM_NAV_TRANSITION_DURATION = 380
 
-// MD3 Expressive easing for bottom-nav switches
 private val BottomNavEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 private val MAIN_ROOT_TRANSITION_SPEC =
