@@ -164,6 +164,10 @@ import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 import com.unshoo.pixelmusic.ui.modifiers.scrollMotionBlur
 import unshoo.ianshulyadav.pixelmusic.innertube.YouTube
 import unshoo.ianshulyadav.pixelmusic.innertube.models.SongItem
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+
 
 
 private const val HomeLoadingPlaceholderMinDurationMillis = 1200L
@@ -833,9 +837,13 @@ fun HomeScreen(
         )
     }
 
-    if (showRecognitionDialog) {
+AnimatedVisibility(
+    visible = showRecognitionDialog,
+    enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)),
+    exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing))
+) {
     MusicRecognitionOverlay(
-        isExternalWindow = true,
+        isExternalWindow = false,
         onDismiss = { showRecognitionDialog = false },
         onPlayMusic = { recognizedSong ->
             showRecognitionDialog = false
