@@ -1,5 +1,6 @@
 package com.unshoo.pixelmusic.presentation.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Immutable
 
 
@@ -10,10 +11,15 @@ sealed class Screen(val route: String) {
     object Library : Screen("library")
     object Explore : Screen("explore")
     object Settings : Screen("settings")
+    object SettingsSearch : Screen("settings_search")
     object Accounts : Screen("settings_accounts")
-    object SettingsCategory : Screen("settings_category/{categoryId}") {
+
+    object SettingsCategory : Screen("settings_category/{categoryId}?highlight={highlight}") {
         fun createRoute(categoryId: String) = "settings_category/$categoryId"
+        fun createRouteWithHighlight(categoryId: String, highlightTitle: String) =
+            "settings_category/$categoryId?highlight=${Uri.encode(highlightTitle)}"
     }
+
     object PaletteStyle : Screen("palette_style_settings")
     object Experimental : Screen("experimental_settings")
     object NavBarCrRad : Screen("nav_bar_corner_radius")
@@ -23,12 +29,12 @@ sealed class Screen(val route: String) {
 
     object SmartMix : Screen("smart_mix")
 
-    object  DailyMixScreen : Screen("daily_mix")
+    object DailyMixScreen : Screen("daily_mix")
     object RecentlyPlayed : Screen("recently_played")
     object QuickPicksAll : Screen("quick_picks_all")
     object Stats : Screen("stats")
     object DJSpace : Screen("dj_space")
-    // La ruta base es "album_detail". La ruta completa con el argumento se define en AppNavigation.
+
     object AlbumDetail : Screen("album_detail/{albumId}") {
         fun createRoute(albumId: Long) = "album_detail/$albumId"
         fun createRoute(albumId: String) = "album_detail/$albumId"
@@ -42,7 +48,7 @@ sealed class Screen(val route: String) {
     object ArtistAlbumsAll : Screen("artist_albums_all/{artistId}/{type}") {
         fun createRoute(artistId: String, type: String) = "artist_albums_all/$artistId/$type"
     }
-    
+
     object ArtistSongsAll : Screen("artist_songs_all/{artistId}") {
         fun createRoute(artistId: String) = "artist_songs_all/$artistId"
     }
@@ -60,5 +66,4 @@ sealed class Screen(val route: String) {
     object WordDelimiterConfig : Screen("word_delimiter_config")
     object DeviceCapabilities : Screen("device_capabilities")
     object YoutubeAuth : Screen("youtube_auth")
-
 }
