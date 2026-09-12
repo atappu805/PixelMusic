@@ -146,9 +146,9 @@ fun MusicRecognitionOverlay(
         Modifier
     }
 
-    val overlayBackground = MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f)
-    val textColor = MaterialTheme.colorScheme.onSurface
-    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val overlayBackground = Color.Black.copy(alpha = 0.78f)
+    val textColor = Color.White
+    val subTextColor = Color.White.copy(alpha = 0.70f)
 
     // ANIMATION SETUP
     val offscreenStartY = with(density) {
@@ -297,9 +297,9 @@ fun MusicRecognitionOverlay(
                             indication = null,
                             onClick = {}
                         ),
-shape = AbsoluteSmoothCornerShape(32.dp, 60),
-color = MaterialTheme.colorScheme.surfaceContainerHigh,
-tonalElevation = 8.dp,
+                    shape = AbsoluteSmoothCornerShape(32.dp, 60),
+                    color = Color(0xFF1E1E1E),
+                    tonalElevation = 8.dp,
                     shadowElevation = 18.dp
                 ) {
                     Column(
@@ -315,8 +315,8 @@ tonalElevation = 8.dp,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .size(width = 210.dp, height = 265.dp)
-.clip(AbsoluteSmoothCornerShape(22.dp, 60))
-.background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .clip(AbsoluteSmoothCornerShape(22.dp, 60))
+                                .background(Color(0xFF2C2C2C))
                         )
 
                         Spacer(modifier = Modifier.height(18.dp))
