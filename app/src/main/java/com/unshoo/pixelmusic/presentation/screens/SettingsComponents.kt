@@ -1,11 +1,8 @@
 package com.unshoo.pixelmusic.presentation.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -31,6 +29,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteForever
@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -79,6 +80,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.core.view.HapticFeedbackConstantsCompat
 import com.unshoo.pixelmusic.presentation.utils.LocalAppHapticsConfig
 import com.unshoo.pixelmusic.presentation.utils.performAppCompatHapticFeedback
+import kotlinx.coroutines.delay
 
 /**
  * When non-null, any SettingsItem / SwitchSettingItem / ThemeSelectorItem whose
@@ -88,30 +90,53 @@ import com.unshoo.pixelmusic.presentation.utils.performAppCompatHapticFeedback
 val LocalSettingsHighlightTitle = compositionLocalOf<String?> { null }
 
 /**
- * Pulsing primary border drawn on top of a settings row when it's the target
- * of a settings-search navigation.
+ * Four-shot pulsing border. Runs a few gentle pulses, then settles on a faint
+ * static glow so the user can still see which row was highlighted.
  */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.HighlightPulseOverlay(shape: Shape) {
-    val transition = rememberInfiniteTransition(label = "settingsHighlightPulse")
-    val alpha by transition.animateFloat(
-        initialValue = 0.15f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "highlightAlpha"
-    )
+private fun BoxScope.HighlightPulseOverlay(shape: Shape) {
+    val alpha = remember { Animatable(0.15f) }
+    LaunchedEffect(Unit) {
+        repeat(4) {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+            )
+            alpha.animateTo(
+                targetValue = 0.15f,
+                animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+            )
+        }
+        // Settle on a faint, non-distracting border
+        alpha.animateTo(
+            targetValue = 0.35f,
+            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+        )
+    }
     Box(
         modifier = Modifier
             .matchParentSize()
             .border(
                 width = 2.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha.value),
                 shape = shape
             )
     )
+}
+
+/**
+ * Auto-scrolls the highlighted row into view once the screen has settled.
+ * No-op when not highlighted.
+ */
+private fun Modifier.autoBringIntoViewWhenHighlighted(isHighlighted: Boolean): Modifier = composed {
+    if (!isHighlighted) return@composed this
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(Unit) {
+        // Wait for top-bar collapse animation + screen transition to finish
+        delay(450)
+        runCatching { requester.bringIntoView() }
+    }
+    this.bringIntoViewRequester(requester)
 }
 
 @Composable
@@ -145,7 +170,11 @@ fun SettingsItem(
     val highlighted = highlightTitle != null && title == highlightTitle
     val shape = RoundedCornerShape(10.dp)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .autoBringIntoViewWhenHighlighted(highlighted)
+    ) {
         Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier =
@@ -204,7 +233,11 @@ fun SwitchSettingItem(
     val highlighted = highlightTitle != null && title == highlightTitle
     val shape = RoundedCornerShape(10.dp)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .autoBringIntoViewWhenHighlighted(highlighted)
+    ) {
         Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier = Modifier.fillMaxWidth().clip(shape)
@@ -300,7 +333,11 @@ fun ThemeSelectorItem(
     val highlighted = highlightTitle != null && label == highlightTitle
     val shape = RoundedCornerShape(10.dp)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .autoBringIntoViewWhenHighlighted(highlighted)
+    ) {
         Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 modifier =
@@ -365,7 +402,7 @@ fun ThemeSelectorItem(
             Column(modifier = Modifier.padding(bottom = 24.dp)) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.headlineSmall, // Larger header
+                    style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                     fontWeight = FontWeight.Bold
                 )
@@ -427,9 +464,8 @@ fun ExpressiveSettingsGroup(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(24.dp)) // Large corners for the group
+            .clip(RoundedCornerShape(24.dp))
             .background(Color.Transparent),
-        //verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         content()
     }
@@ -727,7 +763,11 @@ fun ActionSettingsItem(
     val highlighted = highlightTitle != null && title == highlightTitle
     val shape = RoundedCornerShape(10.dp)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .autoBringIntoViewWhenHighlighted(highlighted)
+    ) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier.fillMaxWidth().clip(shape)
