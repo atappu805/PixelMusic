@@ -126,6 +126,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -186,6 +187,7 @@ import com.unshoo.pixelmusic.presentation.components.ExpressiveTopBarContent
 import com.unshoo.pixelmusic.presentation.components.FileExplorerDialog
 import com.unshoo.pixelmusic.presentation.components.MiniPlayerHeight
 import com.unshoo.pixelmusic.presentation.model.SettingsCategory
+// LocalSettingsHighlightTitle lives in the same package (SettingsComponents.kt)
 import com.unshoo.pixelmusic.presentation.navigation.Screen
 import com.unshoo.pixelmusic.presentation.viewmodel.LyricsRefreshProgress
 import com.unshoo.pixelmusic.presentation.viewmodel.PlayerViewModel
@@ -204,6 +206,7 @@ fun SettingsCategoryScreen(
     playerViewModel: PlayerViewModel,
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     statsViewModel: com.unshoo.pixelmusic.presentation.viewmodel.StatsViewModel = hiltViewModel(),
+    highlightTitle: String? = null,
     onBackClick: () -> Unit
 ) {
     val category = SettingsCategory.fromId(categoryId) ?: return
@@ -397,11 +400,12 @@ fun SettingsCategoryScreen(
         }
     }
 
-    Box(
-        modifier =
-            Modifier.nestedScroll(nestedScrollConnection).fillMaxSize()
-    ) {
-        val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
+CompositionLocalProvider(LocalSettingsHighlightTitle provides highlightTitle) {
+Box(
+    modifier =
+        Modifier.nestedScroll(nestedScrollConnection).fillMaxSize()
+) {
+    val currentTopBarHeightDp = with(density) { topBarHeight.value.toDp() }
         
         LazyColumn(
             state = lazyListState,
@@ -1955,6 +1959,7 @@ AnimatedVisibility(
             )
         }
     }
+}
 
     BackupTransferProgressDialogHost(progress = dataTransferProgress)
 
