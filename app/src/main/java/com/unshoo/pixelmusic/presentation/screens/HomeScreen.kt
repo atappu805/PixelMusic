@@ -84,7 +84,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -429,6 +431,14 @@ fun HomeScreen(
         label = "homeTitleAlpha"
     )
 
+    // Tinted top scrim that matches Explore's Material You expressive style in light mode
+    val homeScrimTopColor = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+            .compositeOver(MaterialTheme.colorScheme.background)
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -472,7 +482,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(
                         top = innerPadding.calculateTopPadding()
                                 + statusBarHeight
-                                + 76.dp,
+                                + 58.dp,
                         bottom = paddingValuesParent.calculateBottomPadding()
                                 + 38.dp + bottomPadding
                     ),
@@ -682,7 +692,7 @@ fun HomeScreen(
                 )
         )
 
-        // Top scrim — matches Explore, hides motion-blur artifacts under status bar
+        // Top scrim — Material You expressive tint in light mode, matches Explore
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -691,31 +701,42 @@ fun HomeScreen(
                 .background(
                     brush = Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
-                            0.18f to MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
-                            0.36f to MaterialTheme.colorScheme.background.copy(alpha = 0.68f),
-                            0.54f to MaterialTheme.colorScheme.background.copy(alpha = 0.48f),
-                            0.72f to MaterialTheme.colorScheme.background.copy(alpha = 0.28f),
-                            0.88f to MaterialTheme.colorScheme.background.copy(alpha = 0.11f),
+                            0.00f to homeScrimTopColor.copy(alpha = 0.95f),
+                            0.18f to homeScrimTopColor.copy(alpha = 0.86f),
+                            0.36f to homeScrimTopColor.copy(alpha = 0.68f),
+                            0.54f to homeScrimTopColor.copy(alpha = 0.48f),
+                            0.72f to homeScrimTopColor.copy(alpha = 0.28f),
+                            0.88f to homeScrimTopColor.copy(alpha = 0.11f),
                             1.00f to Color.Transparent
                         )
                     )
                 )
         )
 
-        // "PixelMusic" title — sits above the scrim, fades out on scroll
-        Text(
-            text = "PixelMusic",
-            fontFamily = GoogleSansRounded,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 32.sp,
-            letterSpacing = 0.5.sp,
+        // "PixelMusic" title + icon — sits above the scrim, fades out on scroll
+        Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 24.dp, top = statusBarHeight + 12.dp)
-                .graphicsLayer { alpha = homeTitleAlpha }
-        )
+                .padding(start = 24.dp, top = statusBarHeight + 14.dp)
+                .graphicsLayer { alpha = homeTitleAlpha },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.pixelmusic_base_monochrome),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+            Text(
+                text = "PixelMusic",
+                fontFamily = GoogleSansRounded,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 32.sp,
+                letterSpacing = 0.5.sp
+            )
+        }
 
         HomeShuffleFab(
             isShuffleEnabled = isShuffleEnabled,
