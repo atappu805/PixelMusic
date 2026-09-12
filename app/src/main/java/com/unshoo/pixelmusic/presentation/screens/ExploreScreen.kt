@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -95,6 +96,7 @@ import com.unshoo.pixelmusic.R
 import com.unshoo.pixelmusic.data.model.Song
 import com.unshoo.pixelmusic.data.remote.youtube.toNativeSong
 import com.unshoo.pixelmusic.presentation.components.MiniPlayerHeight
+import com.unshoo.pixelmusic.presentation.components.MusicRecognitionDialog
 import com.unshoo.pixelmusic.presentation.components.SmartImage
 import com.unshoo.pixelmusic.presentation.components.subcomps.EnhancedSongListItem
 import com.unshoo.pixelmusic.presentation.navigation.Screen
@@ -122,13 +124,17 @@ import unshoo.ianshulyadav.pixelmusic.innertube.models.PlaylistItem
 import unshoo.ianshulyadav.pixelmusic.innertube.models.SongItem
 import unshoo.ianshulyadav.pixelmusic.innertube.models.YTItem
 import unshoo.ianshulyadav.pixelmusic.innertube.pages.HomePage
+import unshoo.ianshulyadav.pixelmusic.innertube.YouTube
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.animation.core.animateFloatAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.unshoo.pixelmusic.ui.modifiers.scrollMotionBlur
 import androidx.compose.material3.TextButton
 import com.unshoo.pixelmusic.presentation.components.HomeShuffleFab
-import kotlinx.coroutines.delay
 
 
 
@@ -212,6 +218,9 @@ fun ExploreScreen(
     val quickPicksDisplayMode by playerViewModel.quickPicksDisplayMode.collectAsStateWithLifecycle()
     val pullRefreshState = rememberPullToRefreshState()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val scope = rememberCoroutineScope()
+
+    var showRecognitionDialog by remember { mutableStateOf(false) }
 
     // Drives the FAB's spring-up animation on entry, mirroring the Home screen behavior
     var isExploreFabActive by remember { mutableStateOf(false) }
@@ -631,7 +640,47 @@ fun ExploreScreen(
             isPlayerActive = isExploreFabActive,
             onClick = { navController.navigateSafely(Screen.SmartMix.route) },
             isExploreMode = true,
+            onLongClick = { showRecognitionDialog = true },
+            onSwipeUp = { showRecognitionDialog = true },
             modifier = Modifier.align(Alignment.BottomEnd)
+        )
+    }
+
+    // Music recognition dialog — triggered by long-press or swipe-up on the FAB
+    if (showRecognitionDialog) {
+        MusicRecognitionDialog(
+            onDismiss = { showRecognitionDialog = false },
+            onPlayMusic = { recognizedSong ->
+                showRecognitionDialog = false
+                scope.launch {
+                    val songToPlay = withContext(Dispatchers.IO) {
+                        val query = "${recognizedSong.title} ${recognizedSong.artist}"
+                        val searchResult = YouTube.search(
+                            query,
+                            YouTube.SearchFilter.FILTER_SONG
+                        ).getOrNull()
+
+                        val topResult = searchResult?.items
+                            ?.firstOrNull { it is SongItem } as? SongItem
+
+                        val nativeSong = topResult?.toNativeSong()
+                        nativeSong?.copy(
+                            albumArtUriString = recognizedSong.coverArtHqUrl
+                                ?: recognizedSong.coverArtUrl
+                                ?: nativeSong.albumArtUriString
+                        )
+                    }
+
+                    if (songToPlay != null) {
+                        playerViewModel.playWithArchiveTuneQueueBuilder(
+                            song = songToPlay,
+                            queueName = "Recognized Music"
+                        )
+                    } else {
+                        playerViewModel.sendToast("Could not find this track on YouTube Music.")
+                    }
+                }
+            }
         )
     }
 }
