@@ -90,23 +90,29 @@ fun SettingsSearchScreen(
         focusRequester.requestFocus()
     }
 
-    /** Navigate + persist the query. */
-    fun openSetting(setting: SearchableSetting, queryUsed: String) {
-        keyboard?.hide()
-        val q = queryUsed.trim()
-        if (q.isNotEmpty()) {
-            recentSearches = RecentSearchesStore.add(context, q)
-        }
-
-        // If the setting belongs to a category, use the highlight-aware route
-        val target = setting.category?.let { cat ->
-            Screen.SettingsCategory.createRouteWithHighlight(cat.id, setting.title)
-        } ?: setting.route
-
-        // Pop the search screen so back returns cleanly to Settings
-        navController.popBackStack()
-        navController.navigateSafely(target)
+/** Navigate + persist the query. */
+fun openSetting(setting: SearchableSetting, queryUsed: String) {
+    keyboard?.hide()
+    val q = queryUsed.trim()
+    if (q.isNotEmpty()) {
+        recentSearches = RecentSearchesStore.add(context, q)
     }
+
+    // Only use the highlight-aware category route when the destination is
+    // actually a category screen. Entries whose route points at a standalone
+    // screen (Device Capabilities, Experimental, Palette Style, Artist
+    // Settings, About, …) must go straight to that route instead.
+    val isCategoryScreen = setting.route.startsWith("settings_category/")
+    val target = if (isCategoryScreen && setting.category != null) {
+        Screen.SettingsCategory.createRouteWithHighlight(setting.category.id, setting.title)
+    } else {
+        setting.route
+    }
+
+    // Pop the search screen so back returns cleanly to Settings
+    navController.popBackStack()
+    navController.navigateSafely(target)
+}
 
     Surface(
         color = MaterialTheme.colorScheme.background,
