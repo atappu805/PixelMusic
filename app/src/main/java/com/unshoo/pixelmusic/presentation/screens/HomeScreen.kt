@@ -124,7 +124,7 @@ import com.unshoo.pixelmusic.presentation.components.HomeOptionsBottomSheet
 import com.unshoo.pixelmusic.presentation.components.HomeShuffleFab
 import com.unshoo.pixelmusic.presentation.components.InstagramPromoDialog
 import com.unshoo.pixelmusic.presentation.components.MiniPlayerHeight
-import com.unshoo.pixelmusic.presentation.components.MusicRecognitionDialog
+import com.unshoo.pixelmusic.presentation.components.MusicRecognitionOverlay
 import com.unshoo.pixelmusic.presentation.components.QuickPicksSection
 import com.unshoo.pixelmusic.presentation.components.RecentlyPlayedSection
 import com.unshoo.pixelmusic.presentation.components.RecentlyPlayedSectionMinSongsToShow
@@ -834,40 +834,41 @@ fun HomeScreen(
     }
 
     if (showRecognitionDialog) {
-        MusicRecognitionDialog(
-            onDismiss = { showRecognitionDialog = false },
-            onPlayMusic = { recognizedSong ->
-                showRecognitionDialog = false
-                scope.launch {
-                    val songToPlay = withContext(Dispatchers.IO) {
-                        val query = "${recognizedSong.title} ${recognizedSong.artist}"
-                        val searchResult = YouTube.search(
-                            query,
-                            YouTube.SearchFilter.FILTER_SONG
-                        ).getOrNull()
+    MusicRecognitionOverlay(
+        isExternalWindow = true,
+        onDismiss = { showRecognitionDialog = false },
+        onPlayMusic = { recognizedSong ->
+            showRecognitionDialog = false
+            scope.launch {
+                val songToPlay = withContext(Dispatchers.IO) {
+                    val query = "${recognizedSong.title} ${recognizedSong.artist}"
+                    val searchResult = YouTube.search(
+                        query,
+                        YouTube.SearchFilter.FILTER_SONG
+                    ).getOrNull()
 
-                        val topResult = searchResult?.items
-                            ?.firstOrNull { it is SongItem } as? SongItem
+                    val topResult = searchResult?.items
+                        ?.firstOrNull { it is SongItem } as? SongItem
 
-                        val nativeSong = topResult?.toNativeSong()
-                        nativeSong?.copy(
-                            albumArtUriString = recognizedSong.coverArtHqUrl
-                                ?: recognizedSong.coverArtUrl
-                                ?: nativeSong.albumArtUriString
-                        )
-                    }
+                    val nativeSong = topResult?.toNativeSong()
+                    nativeSong?.copy(
+                        albumArtUriString = recognizedSong.coverArtHqUrl
+                            ?: recognizedSong.coverArtUrl
+                            ?: nativeSong.albumArtUriString
+                    )
+                }
 
-                    if (songToPlay != null) {
-                        playerViewModel.playWithArchiveTuneQueueBuilder(
-                            song = songToPlay,
-                            queueName = "Recognized Music"
-                        )
-                    } else {
-                        playerViewModel.sendToast("Could not find this track on YouTube Music.")
-                    }
+                if (songToPlay != null) {
+                    playerViewModel.playWithArchiveTuneQueueBuilder(
+                        song = songToPlay,
+                        queueName = "Recognized Music"
+                    )
+                } else {
+                    playerViewModel.sendToast("Could not find this track on YouTube Music.")
                 }
             }
-        )
+        }
+    )
     }
 }
 
