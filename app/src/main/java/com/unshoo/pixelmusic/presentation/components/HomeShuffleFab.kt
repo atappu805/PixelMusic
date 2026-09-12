@@ -68,7 +68,7 @@ fun HomeShuffleFab(
     val inactiveHeight = when (navState) {
         2 -> 40.dp
         1 -> 14.dp
-        else -> 10.dp
+        else -> 5.dp
     }
 
     var isPlayerActiveDelayed by remember { mutableStateOf(isPlayerActive) }
