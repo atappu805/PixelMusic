@@ -107,11 +107,11 @@ private fun BoxScope.HighlightPulseOverlay(shape: Shape) {
                 animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
             )
         }
-        // Settle on a faint, non-distracting border
-        alpha.animateTo(
-            targetValue = 0.35f,
-            animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-        )
+// Fade out completely
+alpha.animateTo(
+    targetValue = 0f,
+    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+)
     }
     Box(
         modifier = Modifier
