@@ -96,7 +96,7 @@ import com.unshoo.pixelmusic.R
 import com.unshoo.pixelmusic.data.model.Song
 import com.unshoo.pixelmusic.data.remote.youtube.toNativeSong
 import com.unshoo.pixelmusic.presentation.components.MiniPlayerHeight
-import com.unshoo.pixelmusic.presentation.components.MusicRecognitionDialog
+import com.unshoo.pixelmusic.presentation.components.MusicRecognitionOverlay
 import com.unshoo.pixelmusic.presentation.components.SmartImage
 import com.unshoo.pixelmusic.presentation.components.subcomps.EnhancedSongListItem
 import com.unshoo.pixelmusic.presentation.navigation.Screen
