@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -242,19 +243,47 @@ fun SettingsScreen(
                     lazyListState = lazyListState, 
                     enabled = uiState.isUiMotionBlurEnabled
                 )
+) {
+    item(key = "settings_search_pill") {
+        Surface(
+            onClick = { navController.navigateSafely(Screen.SettingsSearch.route) },
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            item {
-                com.unshoo.pixelmusic.presentation.components.ExpandableAccountCard(
-                    uiState = uiState,
-                    isPro = isProUser,
-                    onLoginNew = { showLoginOptionsDialog = true },
-                    onLogout = { settingsViewModel.logoutYoutube() },
-                    onManageAccounts = { navController.navigateSafely(Screen.Accounts.route) },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(14.dp))
+                Text(
+                    text = "Search settings…",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            item {
-                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+        }
+    }
+    item {
+        com.unshoo.pixelmusic.presentation.components.ExpandableAccountCard(
+            uiState = uiState,
+            isPro = isProUser,
+            onLoginNew = { showLoginOptionsDialog = true },
+            onLogout = { settingsViewModel.logoutYoutube() },
+            onManageAccounts = { navController.navigateSafely(Screen.Accounts.route) },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+        )
+    }
+    item {
+        val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                 ExpressiveSettingsGroup {
                     val mainCategories = SettingsCategory.entries.filter {
                         it != SettingsCategory.ABOUT && 
