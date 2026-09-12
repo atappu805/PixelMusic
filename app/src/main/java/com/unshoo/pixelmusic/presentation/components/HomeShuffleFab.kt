@@ -2,6 +2,8 @@ package com.unshoo.pixelmusic.presentation.components
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,13 +31,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import com.unshoo.pixelmusic.R
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeShuffleFab(
@@ -101,14 +107,33 @@ fun HomeShuffleFab(
         else -> MaterialTheme.colorScheme.onTertiaryContainer
     }
 
-    // Swipe-up detection state
-    var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    // ── Gesture-reactive pull ────────────────────────────────────────────────────────────
+    val density = LocalDensity.current
+    val maxPullPx = with(density) { 40.dp.toPx() }      // visual cap — FAB stops here
+    val swipeThresholdPx = with(density) { 28.dp.toPx() } // triggers the recognition dialog
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var swipeTriggered by remember { mutableStateOf(false) }
-    val swipeThresholdPx = 60f
+
+    // During drag: snaps instantly to finger position. On release: bounces back to 0.
+    val animatedOffsetY by animateFloatAsState(
+        targetValue = if (isDragging) dragOffsetY else 0f,
+        animationSpec = if (isDragging) {
+            snap()
+        } else {
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        },
+        label = "fabDragOffset"
+    )
 
     Box(
         modifier = modifier
             .padding(bottom = animatedBottomOffset.coerceAtLeast(0.dp), end = dynamicEndPadding)
+            .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
             .size(64.dp)
             .clip(CircleShape)
             .background(containerColor)
@@ -117,21 +142,27 @@ fun HomeShuffleFab(
                     Modifier.pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragStart = {
-                                dragAccumulator = 0f
+                                isDragging = true
+                                dragOffsetY = 0f
                                 swipeTriggered = false
                             },
                             onDragEnd = {
-                                dragAccumulator = 0f
+                                isDragging = false
                                 swipeTriggered = false
                             },
                             onDragCancel = {
-                                dragAccumulator = 0f
+                                isDragging = false
                                 swipeTriggered = false
                             },
                             onVerticalDrag = { change, dragAmount ->
                                 change.consume()
-                                dragAccumulator += dragAmount
-                                if (!swipeTriggered && dragAccumulator < -swipeThresholdPx) {
+
+                                // Clamp so the FAB stops after a tiny pull
+                                val newValue = (dragOffsetY + dragAmount).coerceIn(-maxPullPx, 0f)
+                                dragOffsetY = newValue
+
+                                // Trigger once when threshold is crossed
+                                if (!swipeTriggered && newValue < -swipeThresholdPx) {
                                     swipeTriggered = true
                                     onSwipeUp.invoke()
                                 }
