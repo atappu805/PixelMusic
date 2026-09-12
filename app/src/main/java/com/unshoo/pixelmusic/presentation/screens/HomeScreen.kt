@@ -421,6 +421,14 @@ fun HomeScreen(
         Modifier
     }
 
+    // Status-bar height + title alpha — used by the top scrim and "PixelMusic" title
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val homeTitleAlpha by animateFloatAsState(
+        targetValue = if (isScrolledPastThreshold.value) 0f else 1f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "homeTitleAlpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -463,8 +471,8 @@ fun HomeScreen(
                         ),
                     contentPadding = PaddingValues(
                         top = innerPadding.calculateTopPadding()
-                                + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                                + 12.dp,
+                                + statusBarHeight
+                                + 76.dp,
                         bottom = paddingValuesParent.calculateBottomPadding()
                                 + 38.dp + bottomPadding
                     ),
@@ -674,6 +682,41 @@ fun HomeScreen(
                 )
         )
 
+        // Top scrim — matches Explore, hides motion-blur artifacts under status bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .height(statusBarHeight + 64.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                            0.18f to MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+                            0.36f to MaterialTheme.colorScheme.background.copy(alpha = 0.68f),
+                            0.54f to MaterialTheme.colorScheme.background.copy(alpha = 0.48f),
+                            0.72f to MaterialTheme.colorScheme.background.copy(alpha = 0.28f),
+                            0.88f to MaterialTheme.colorScheme.background.copy(alpha = 0.11f),
+                            1.00f to Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // "PixelMusic" title — sits above the scrim, fades out on scroll
+        Text(
+            text = "PixelMusic",
+            fontFamily = GoogleSansRounded,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 32.sp,
+            letterSpacing = 0.5.sp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 24.dp, top = statusBarHeight + 12.dp)
+                .graphicsLayer { alpha = homeTitleAlpha }
+        )
+
         HomeShuffleFab(
             isShuffleEnabled = isShuffleEnabled,
             isPlayerActive = currentSong != null,
@@ -684,6 +727,7 @@ fun HomeScreen(
                 }
             },
             onLongClick = { showRecognitionDialog = true },
+            onSwipeUp = { showRecognitionDialog = true },
             modifier = Modifier.align(Alignment.BottomEnd)
         )
     }
@@ -1213,7 +1257,7 @@ fun HomeGreetingHeader(userName: String?) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(top = 8.dp)
+            .padding(top = 0.dp)
     ) {
         Text(
             text = greeting,
