@@ -66,8 +66,8 @@ fun HomeShuffleFab(
         else -> 55.dp
     }
     val inactiveHeight = when (navState) {
-        2 -> 50.dp
-        1 -> 24.dp
+        2 -> 40.dp
+        1 -> 14.dp
         else -> 10.dp
     }
 
