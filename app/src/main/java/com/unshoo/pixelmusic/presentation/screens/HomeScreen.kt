@@ -4,7 +4,10 @@
 )
 package com.unshoo.pixelmusic.presentation.screens
 
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -838,10 +841,24 @@ AnimatedVisibility(
                         ?.firstOrNull { it is SongItem } as? SongItem
 
                     val nativeSong = topResult?.toNativeSong()
-                    nativeSong?.copy(
-                        albumArtUriString = recognizedSong.coverArtHqUrl
+                    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    val capabilities = connectivityManager?.getNetworkCapabilities(connectivityManager.activeNetwork)
+                    val isWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
+                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+
+                    val albumArtUrl = if (isWifi) {
+                        recognizedSong.coverArtHqUrl
                             ?: recognizedSong.coverArtUrl
-                            ?: nativeSong.albumArtUriString
+                            ?: nativeSong?.albumArtUriString
+                    } else {
+                        recognizedSong.coverArtUrl
+                            ?: topResult?.thumbnail
+                            ?: recognizedSong.coverArtHqUrl
+                            ?: nativeSong?.albumArtUriString
+                    }
+
+                    nativeSong?.copy(
+                        albumArtUriString = albumArtUrl
                     )
                 }
 
